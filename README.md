@@ -87,6 +87,20 @@ PROVIDER_MODE=mock
 `run.py` refuses to start in live mode without the required keys, and refuses if
 no internet route is present, rather than failing once frames are flowing.
 
+### ElevenLabs smoke test
+
+With `ELEVENLABS_API_KEY` in `.env` or the environment, run a one-shot billable
+text-to-speech test:
+
+```bash
+python3 -m pip install elevenlabs
+python3 test.py
+```
+
+It uses the configured `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID`, falling
+back to the example voice and `eleven_v3`, then plays the returned audio. Set
+`ELEVENLABS_TEST_TEXT` to change the spoken sentence.
+
 ### Tests
 
 ```bash
