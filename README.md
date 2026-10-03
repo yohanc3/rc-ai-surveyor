@@ -225,4 +225,5 @@ Press `Ctrl+C` once to stop the camera relay, sampler, dashboard, and backend.
 ## Design
 
 See [Gemini Vision and ElevenLabs TTS Design](docs/AI_PIPELINE_DESIGN.md) for
-the planned cloud-analysis, text, and browser-audio pipeline.
+the planned cloud-analysis, text, and browser-audio pipeline, and
+[Implementation Notes](docs/IMPLEMENTATION.md) for what the code does today.
