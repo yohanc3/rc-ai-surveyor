@@ -5,3 +5,6 @@ __pycache__/
 .venv/
 venv/
 *.log
+var/
+node_modules/
+frontend/dist/

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RC AI Surveyor</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div class="title">
+        <h1>RC AI Surveyor</h1>
+        <p class="sub">HERO7 Silver &middot; fallback dashboard</p>
+      </div>
+      <div class="badges">
+        <span id="live-badge" class="badge">connecting</span>
+        <span id="uptime" class="badge quiet">&mdash;</span>
+      </div>
+    </header>
+
+    <p class="notice small">
+      This is the dependency-free fallback page. Build the React dashboard with
+      <code>cd frontend &amp;&amp; npm install &amp;&amp; npm run build</code> for the full interface.
+    </p>
+
+    <div class="stage">
+      <div class="video-shell">
+        <video id="video" autoplay muted playsinline></video>
+        <iframe id="video-fallback" allow="autoplay; fullscreen" title="Live GoPro feed" hidden></iframe>
+        <div id="overlay" class="overlay">
+          <div class="spinner"></div>
+          <p id="overlay-text">Starting live video&hellip;</p>
+        </div>
+        <div class="video-foot">
+          <span id="video-mode" class="tag">WebRTC</span>
+          <button id="reconnect" type="button">Reconnect</button>
+        </div>
+      </div>
+
+      <aside>
+        <section class="card">
+          <h2>Connections</h2>
+          <ul id="services" class="services"></ul>
+        </section>
+        <section class="card">
+          <h2>Latest sampled frame</h2>
+          <div class="frame-shell">
+            <img id="frame" alt="Most recent frame sent to the analysis pipeline" hidden>
+            <p id="frame-empty" class="muted small">No frames sampled yet.</p>
+          </div>
+          <p id="frame-meta" class="muted small">&mdash;</p>
+        </section>
+        <section class="card">
+          <h2>Pipeline</h2>
+          <dl id="stats" class="stats"></dl>
+        </section>
+      </aside>
+    </div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Technical description</h2>
+        <p id="technical" class="muted">Waiting for the first analysis.</p>
+      </section>
+      <section class="card">
+        <h2>Human-friendly narration</h2>
+        <p id="narration" class="muted">Waiting for the first analysis.</p>
+        <button id="enable-audio" type="button" class="primary">Enable audio</button>
+        <audio id="player" class="player" controls preload="none" hidden></audio>
+      </section>
+    </div>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
