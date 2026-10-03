@@ -2,7 +2,8 @@
 
 This is a small, dependency-free Python supervisor around FFmpeg. It automates
 the legacy HERO7 Silver preview-start request, UDP keepalive, reception, and
-forwarding. It is deliberately a folder of scripts, not a Git repository.
+forwarding. The project is intentionally small so the legacy camera adapter can
+be replaced later without changing the rest of the media pipeline.
 
 ## Architecture
 
@@ -58,10 +59,13 @@ docker run --rm --name gopro-mediamtx \
 ```
 
 Connect Wi-Fi to the GoPro. In another terminal, publish the camera preview to
-the relay without re-encoding:
+the relay. Transcoding at the edge prevents the HERO7's damaged legacy packets
+from being forwarded unchanged to every downstream decoder:
 
 ```bash
-python3 gopro_gateway.py --output rtmp://127.0.0.1:1935/gopro
+python3 gopro_gateway.py \
+  --transcode \
+  --output rtmp://127.0.0.1:1935/gopro
 ```
 
 MediaMTX now exposes the stream locally as:
@@ -85,8 +89,17 @@ late or temporarily disappears.
 python3 frame_sampler.py \
   --input rtsp://127.0.0.1:8554/gopro \
   --fps 2 \
-  --latest-file /tmp/gopro-latest.jpg
+  --latest-file /tmp/gopro-latest.jpg \
+  --viewer \
+  --open-browser
 ```
+
+The viewer is available at `http://127.0.0.1:8787`. It provides:
+
+- `/` — a human-friendly live page.
+- `/stream.mjpg` — the sampled MJPEG stream.
+- `/latest.jpg` — the newest complete JPEG.
+- `/status` — JSON containing sequence number and frame age.
 
 It can instead POST each selected JPEG to an existing API:
 
