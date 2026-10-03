@@ -1,6 +1,7 @@
 # Gemini Vision and ElevenLabs TTS Design
 
-Status: proposed  
+Status: proposed
+
 Last updated: 2026-10-03
 
 ## 1. Objective
