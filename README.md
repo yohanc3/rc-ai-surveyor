@@ -1,13 +1,18 @@
 # RC AI Surveyor
 
-Low-latency HERO7 Silver video in a browser.
+Low-latency HERO7 Silver video with a backend frame pipeline.
 
 ```text
-GoPro UDP preview -> FFmpeg stream copy -> MediaMTX -> browser WebRTC
+GoPro UDP/H.264 -> MediaMTX -+-> browser WebRTC (live video)
+                             |
+                             +-> backend sampler (2 FPS)
+                                  -> Gemini Flash (next)
+                                  -> technical + narration text (next)
+                                  -> ElevenLabs audio (later)
 ```
 
-There is no frame extraction, JPEG conversion, RTMP hop, or video
-re-encoding. MediaMTX is the backend and serves the browser page.
+The live video and AI pipeline are separate consumers. Sampling or future model
+work therefore does not add delay to the browser video.
 
 ## Run
 
@@ -20,18 +25,31 @@ Requirements: Docker and FFmpeg.
 python3 run.py
 ```
 
-The script starts the backend, starts and maintains the camera preview, relays
-the original H.264 video, and opens:
+The dashboard opens automatically at:
 
 ```text
-http://127.0.0.1:8889/gopro/
+http://127.0.0.1:8787/
 ```
 
-Press `Ctrl+C` once to stop the relay and backend.
+It contains the live feed plus placeholders for the concise technical response,
+the human-friendly narration, and future audio.
 
-## Why this is faster
+## Backend frame confirmation
 
-The earlier prototype decoded the stream into JPEGs at 2 FPS after passing
-through RTMP and RTSP. That added buffering and made the picture visibly old.
-This version keeps the compressed camera video intact and sends it directly to
-the browser through WebRTC.
+The backend samples two JPEG frames per second from the relayed video. Each
+received frame produces a log like:
+
+```text
+backend frame #12 received (42891 bytes) | ready for Gemini Flash -> technical + narration text -> ElevenLabs
+```
+
+The frame stops there for now: no data is sent to Gemini or ElevenLabs yet. The
+dashboard also shows the current backend frame number and byte size.
+
+Use `--sample-fps` to change the analysis rate:
+
+```bash
+python3 run.py --sample-fps 1
+```
+
+Press `Ctrl+C` once to stop the camera relay, sampler, dashboard, and backend.
