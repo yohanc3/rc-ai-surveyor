@@ -100,8 +100,22 @@ reports the latest audio and speech counters.
 Press `Ctrl+C` once to stop the camera relay, sampler, dashboard, and backend.
 
 The `.env` file is git-ignored. `run.py` refuses live mode when required keys
-are missing or no internet route is available. If the MediaMTX image is missing,
+are missing. A failed TCP DNS connectivity probe is only a warning: cellular
+networks can block that probe while provider HTTPS still works. Provider
+requests report actual failures. If the MediaMTX image is missing,
 run `python3 run.py --setup` again while connected to regular internet.
+
+### GoPro Wi-Fi plus iPhone USB
+
+Keep Wi-Fi on the GoPro and iPhone USB above Wi-Fi in macOS network service
+order. Some cellular connections use IPv6/NAT64 translation. On this Mac,
+ordinary requests to `10.5.5.9` attempted a synthesized IPv6 address and timed
+out, while `curl -4` and explicit IPv4 sockets returned HTTP 200.
+
+Camera status and preview-start requests now use direct IPv4 sockets and skip
+macOS proxy discovery. Cloud requests retain normal IPv4/IPv6 support. This
+does not disable IPv6 on the Mac or alter its network routes. See Apple's
+[DNS64/NAT64 guidance](https://developer.apple.com/support/ipv6/).
 
 ### ElevenLabs smoke test
 
