@@ -9,9 +9,10 @@ Last updated: 2026-10-03
 Extend RC AI Surveyor so one camera stream supports two independent paths:
 
 1. The browser continuously shows the lowest-latency live GoPro video.
-2. The backend samples one frame every two seconds, asks Gemini to describe
-  what is visible, displays Gemini's two text outputs, converts the narration
-  output to speech with ElevenLabs, and plays that speech in the browser.
+2. The backend samples one frame every two seconds and groups three frames
+  into a six-second Gemini observation. It displays a concise technical note,
+  converts a short first-person narration to speech with ElevenLabs, and plays
+  that speech in the browser.
 
 The live video must never wait for Gemini or ElevenLabs.
 
@@ -45,7 +46,7 @@ HERO7 Silver (UDP MPEG-TS/H.264)
 Browser WebRTC   Frame sampler (1 JPEG frame/2 seconds)
                        |
                        v
-              latest-frame batch (max size 1)
+              latest-frame batch (3 JPEGs / 6 seconds)
                        |
                        v
               Gemini vision analysis
@@ -83,24 +84,26 @@ network connected.
 
 ## 5. Frame ingestion and backpressure
 
-The `FrameSampler` produces one JPEG every two seconds by default. Its callback
-feeds a bounded analysis queue.
+The `FrameSampler` produces one JPEG every two seconds by default. Three
+sampled frames form one six-second analysis batch.
 
 Design rules:
 
-- Capture one frame every two seconds by default.
-- Send each frame as one Gemini request; this keeps the analysis cadence and
-  model call rate at one request every two seconds.
+- Capture one frame every two seconds and send one Gemini request per three
+  frames (one request every six seconds) by default.
 - Allow only one Gemini request in flight initially.
 - Keep at most one pending batch. When the worker is busy, replace the pending
   batch with the newest complete batch instead of accumulating stale footage.
+- Include the five most recent validated text observations in each prompt so
+  Gemini can focus on changes without treating history as current visual proof.
 - Timestamp every frame at capture time and carry its sequence number through
   analysis, speech, browser events, and logs.
 - Resize only if required by cost or latency testing. The GoPro preview frames
   are already small enough to send inline as JPEG data.
 
-One frame every two seconds equals 1,800 images per hour. Measure image volume
-and model cost during testing.
+One frame every two seconds equals 1,800 images and 600 Gemini requests per
+hour at the default batch size. Measure image volume and model cost during
+testing.
 
 ## 6. Gemini analysis
 

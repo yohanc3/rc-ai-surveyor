@@ -83,7 +83,7 @@ function silentMp3Url(seconds) {
   return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
 }
 
-export function createMockBackend({ sampleFps = 0.5, onEvent } = {}) {
+export function createMockBackend({ sampleFps = 0.5, batchSeconds = 6, onEvent } = {}) {
   const started = performance.now();
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
@@ -178,7 +178,7 @@ export function createMockBackend({ sampleFps = 0.5, onEvent } = {}) {
     frameUrl = dataUrl;
 
     // One analysis per batching window, matching ANALYSIS_BATCH_SECONDS.
-    const framesPerBatch = Math.max(1, Math.round(sampleFps));
+    const framesPerBatch = Math.max(1, Math.round(sampleFps * batchSeconds));
     if (frameCount % framesPerBatch === 0) {
       analyses += 1;
       const scene = SCENES[(analyses - 1) % SCENES.length];
@@ -186,7 +186,10 @@ export function createMockBackend({ sampleFps = 0.5, onEvent } = {}) {
       const event = {
         type: 'analysis',
         analysis_id: analysisId,
-        frame_sequences: [frameCount - framesPerBatch + 1, frameCount],
+        frame_sequences: Array.from(
+          { length: framesPerBatch },
+          (_, index) => frameCount - framesPerBatch + index + 1,
+        ),
         captured_at: new Date().toISOString().replace(/\.(\d{3})\d*Z$/, '.$1Z'),
         ...scene,
       };
@@ -214,6 +217,7 @@ export function createMockBackend({ sampleFps = 0.5, onEvent } = {}) {
     mode: 'demo',
     config: {
       sample_fps: sampleFps,
+      analysis_batch_seconds: batchSeconds,
       whep_url: null,
       media_url: null,
       provider_mode: 'mock (browser demo)',

@@ -105,7 +105,7 @@ def load_config(sample_fps: float | None = None, provider_mode: str | None = Non
     if analysis_fps <= 0:
         raise ConfigError("analysis FPS must be greater than zero")
 
-    batch_seconds = _float("ANALYSIS_BATCH_SECONDS", 2.0)
+    batch_seconds = _float("ANALYSIS_BATCH_SECONDS", 6.0)
     if batch_seconds <= 0:
         raise ConfigError("ANALYSIS_BATCH_SECONDS must be greater than zero")
 

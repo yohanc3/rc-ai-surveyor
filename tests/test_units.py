@@ -10,7 +10,7 @@ from app.audio_store import AudioStore
 from app.config import ConfigError
 from app.events import EventBus, sse_frame
 from app.frame_pipeline import FrameBatcher
-from app.gemini_analyzer import parse_analysis_response
+from app.gemini_analyzer import _build_frame_prompt, parse_analysis_response
 from app.models import FrameBatch, SchemaValidationError, new_analysis_id
 from app.providers import MockVisionAnalyzer, silent_mp3
 from tests.helpers import make_config, make_frame
@@ -31,9 +31,9 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.gemini_model, "gemini-3.8-flash")
         self.assertEqual(config.elevenlabs_model_id, "eleven_flash_v2_5")
         self.assertEqual(config.analysis_fps, 0.5)
-        self.assertEqual(config.analysis_batch_seconds, 2.0)
+        self.assertEqual(config.analysis_batch_seconds, 6.0)
         self.assertEqual(config.tts_min_interval_seconds, 3.0)
-        self.assertEqual(config.frames_per_batch, 1)
+        self.assertEqual(config.frames_per_batch, 3)
 
     def test_live_requires_credentials(self):
         with self.assertRaises(ConfigError):
@@ -171,6 +171,22 @@ class TestGeminiParsing(unittest.TestCase):
         )
         self.assertEqual(event["type"], "analysis")
         self.assertTrue(event["captured_at"].endswith("Z"))
+
+
+class TestGeminiPrompt(unittest.TestCase):
+    def test_summarizes_three_frame_window_with_prior_observations(self):
+        batch = FrameBatch(
+            new_analysis_id(), tuple(make_frame(i) for i in (7, 8, 9)), 0.0
+        )
+        prompt = _build_frame_prompt(
+            batch, 6.0,
+            ("Technical: clear walkway. Narration: I see a clear walkway.",),
+        )
+
+        self.assertIn("3 frames captured over 6 seconds", prompt)
+        self.assertIn("do not describe each frame separately", prompt)
+        self.assertIn("I see a clear walkway", prompt)
+        self.assertIn("Avoid repeating unchanged details", prompt)
 
 
 class TestMockVisionAnalyzer(unittest.IsolatedAsyncioTestCase):

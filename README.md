@@ -5,8 +5,8 @@ Low-latency HERO7 Silver video with a backend frame pipeline.
 ```text
 GoPro UDP/H.264 -> MediaMTX -+-> browser WebRTC (live video)
                              |
-                    +-> frame sampler (0.5 FPS)
-                                  -> 2-second batch (1 frame, newest only)
+                          +-> frame sampler (0.5 FPS)
+                            -> 6-second batch (3 frames, newest only)
                                   -> Gemini vision analysis
                                   -> technical + narration text   -> SSE
                                   -> ElevenLabs streaming TTS     -> MP3
@@ -32,61 +32,76 @@ python3 run.py --setup
 That downloads the `bluenviron/mediamtx` image, builds the dashboard
 (`npm install && npm run build`), and validates the configuration. It is the
 only step that touches the internet. Re-run it only when something changes.
-
-### Step 2 — offline run (on the GoPro network)
-
-1. Connect this machine's Wi-Fi to the GoPro's `GP...` network.
-2. From this directory:
+For live Gemini analysis, also install its SDK now:
 
 ```bash
-python3 run.py
+python3 -m pip install google-genai
 ```
 
-The dashboard opens automatically at:
+### Step 2 — connect and run
+
+Connect the laptop to the GoPro's `GP...` Wi-Fi. For live AI, also provide
+internet through USB phone tethering or Ethernet; the GoPro Wi-Fi itself has no
+internet route. Live mode needs both network paths at the same time.
+
+Create `.env` beside `run.py` before starting live mode:
+
+```text
+GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_THINKING_LEVEL=low
+
+ELEVENLABS_API_KEY=your-elevenlabs-key
+ELEVENLABS_VOICE_ID=your-voice-id
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
+
+ANALYSIS_FPS=0.5
+ANALYSIS_BATCH_SECONDS=6
+TTS_MIN_INTERVAL_SECONDS=3
+```
+
+Use the voice ID from your ElevenLabs account, not the model name. The model
+groups three sampled frames into one six-second description and short spoken
+update, with the five latest observations supplied as context to reduce
+repetition. That observation history resets when the app restarts.
+
+For offline video and sampling without image analysis or real speech:
+
+```bash
+python3 run.py --provider-mode mock
+```
+
+For live Gemini analysis and ElevenLabs speech, use:
+
+```bash
+python3 run.py --provider-mode live
+```
+
+On macOS with the python.org Python 3.14 install, if certificate verification
+fails and `Install Certificates.command` cannot update `certifi`, launch with
+its installed CA bundle explicitly selected:
+
+```bash
+SSL_CERT_FILE="$(python3 -c 'import certifi; print(certifi.where())')" \
+  python3 run.py --provider-mode live
+```
+
+The dashboard opens at:
 
 ```text
 http://127.0.0.1:8787/
 ```
 
-Nothing in this step reaches the internet: with the default
-`PROVIDER_MODE=mock`, the video and frame sampling work offline. Mock analysis
-does not inspect images and explicitly labels its output as such. If the
-MediaMTX image is missing,
-`run.py` says so and points you back at step 1 rather than hanging on a pull it
-cannot complete.
+In live mode, click **Enable audio** once in the dashboard. The native audio
+player also lets you replay the latest generated clip. Successful synthesis is
+logged as `elevenlabs_complete` followed by `audio_published`; `/api/status`
+reports the latest audio and speech counters.
 
 Press `Ctrl+C` once to stop the camera relay, sampler, dashboard, and backend.
 
-### Running the real providers
-
-Gemini and ElevenLabs are cloud services, so live mode needs internet *while
-running*, in addition to the GoPro Wi-Fi. Per design document section 4 that
-means a second route — ethernet, USB phone tethering, or a second Wi-Fi adapter:
-
-```bash
-pip install google-genai          # online, during step 1
-PROVIDER_MODE=live python3 run.py
-```
-
-Put the keys in a `.env` file beside `run.py` (it is git-ignored):
-
-```text
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.8-flash
-GEMINI_THINKING_LEVEL=low
-
-ELEVENLABS_API_KEY=
-ELEVENLABS_VOICE_ID=
-ELEVENLABS_MODEL_ID=eleven_flash_v2_5
-
-ANALYSIS_FPS=0.5
-ANALYSIS_BATCH_SECONDS=2
-TTS_MIN_INTERVAL_SECONDS=3
-PROVIDER_MODE=mock
-```
-
-`run.py` refuses to start in live mode without the required keys, and refuses if
-no internet route is present, rather than failing once frames are flowing.
+The `.env` file is git-ignored. `run.py` refuses live mode when required keys
+are missing or no internet route is available. If the MediaMTX image is missing,
+run `python3 run.py --setup` again while connected to regular internet.
 
 ### ElevenLabs smoke test
 

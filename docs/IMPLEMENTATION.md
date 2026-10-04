@@ -18,7 +18,7 @@ GoPro (UDP MPEG-TS/H.264, 10.5.5.9)
        /          \
   browser WebRTC   frame sampler (0.5 fps JPEG)
    (live video)         |
-                   2-second batch (1 frame, newest only)
+                   6-second batch (3 frames, newest only)
                         |
                    Gemini vision  -> technical + narration text -> SSE
                         |
@@ -36,7 +36,7 @@ app/config.py            env + .env loading, validation, redacted logging
 app/models.py            Frame, FrameBatch, Analysis, AudioResult, ids, health
 app/frame_pipeline.py    batching, bounded workers, retry and speech policy
 app/providers.py         VisionAnalyzer / SpeechSynthesizer protocols + mocks
-app/gemini_analyzer.py   google-genai call, prompt, response validation
+app/gemini_analyzer.py   google-genai call, concise prompt, recent observations
 app/elevenlabs_tts.py    streaming TTS over plain HTTP
 app/audio_store.py       atomic publish, retention ring, id validation
 app/events.py            fan-out bus behind the SSE endpoint
@@ -73,6 +73,9 @@ reconnecting browser is immediately consistent.
   retry; the dashboard degrades and keeps the last good text.
 - Mock vision output explicitly says it is not derived from camera pixels;
   frame-grounded descriptions require live Gemini mode.
+- Live Gemini receives three frames per six-second request by default and has
+  the five most recent validated observations available to avoid repetition.
+- Technical notes are concise; spoken narration is a short first-person update.
 - Every analysis carries one id through logs, SSE and the audio URL.
 - All durations use the monotonic clock, so a system clock step cannot distort
   a reported rate or age.
@@ -108,7 +111,7 @@ analysis text in the browser, so the whole UI is explorable with no hardware.
 python3 -m unittest discover -s tests -t .
 ```
 
-46 tests, standard library only: no pip install, no network, no camera. They
+47 tests, standard library only: no pip install, no network, no camera. They
 cover batching and backpressure accounting, the retry policy, speech
 de-duplication and cooldown, every endpoint, SSE delivery and reconnect, and
 path traversal on both static files and audio ids. One integration test drives

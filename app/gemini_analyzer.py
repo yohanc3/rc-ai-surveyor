@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections import deque
 
 from .config import Config
 from .models import Analysis, AnalysisError, FrameBatch, SchemaValidationError
@@ -17,21 +18,24 @@ or more camera frames and report only what is visibly supported by them.
 
 Return exactly two fields.
 
-technical_description: concise, factual and domain-oriented. At most two short \
-sentences. Use precise wording an inspector would use.
+technical_description: one concise, factual, domain-oriented sentence. Use \
+precise wording an inspector would use.
 
-narration_text: natural spoken language for a non-specialist listener. Normally \
-at most three short sentences. It will be read aloud by a text-to-speech voice, \
-so write numbers, units, abbreviations and symbols as words ("twenty \
-centimetres", not "20cm").
+narration_text: one short, casual, first-person sentence as the robot observer, \
+for example "I see a clear path ahead." Aim for eighteen words or fewer. It will \
+be read aloud, so write numbers, units and abbreviations as words.
 
 Rules:
 - Describe only what is visible as evidence in the frames.
+- Synthesize the whole frame batch into one update; do not narrate each frame.
 - State uncertainty explicitly rather than guessing.
 - Do not infer identity, protected traits, intent, ownership, or anything not \
 present in the images.
 - You may compare the frames, but do not claim motion unless the evidence \
 supports it.
+- Use the supplied recent observations to avoid repeating unchanged details. \
+    Treat history as context only, not evidence of what is visible now. If nothing \
+    materially changed, say so briefly in first person.
 """
 
 RESPONSE_SCHEMA = {
@@ -83,6 +87,29 @@ def parse_analysis_response(payload: str, batch: FrameBatch) -> Analysis:
     )
 
 
+def _build_frame_prompt(
+    batch: FrameBatch,
+    batch_seconds: float,
+    recent_observations: tuple[str, ...],
+) -> str:
+    prompt = (
+        f"Analyze these {len(batch.frames)} frames captured over "
+        f"{batch_seconds:g} seconds as one observation. "
+        "Synthesize the important details across the batch; do not describe "
+        "each frame separately."
+    )
+    if recent_observations:
+        history = "\n".join(f"- {observation}" for observation in recent_observations)
+        prompt += (
+            "\nRecent observations I already reported:\n"
+            f"{history}\n"
+            "Avoid repeating unchanged details. Verify any continuing detail "
+            "against the current frames; report material changes or a brief "
+            "first-person update if nothing new is visible."
+        )
+    return prompt
+
+
 class GeminiVisionAnalyzer:
     """Calls Gemini through the official google-genai SDK.
 
@@ -92,6 +119,7 @@ class GeminiVisionAnalyzer:
     def __init__(self, config: Config) -> None:
         self._config = config
         self._client = None
+        self._recent_observations: deque[str] = deque(maxlen=5)
 
     def _ensure_client(self):
         if self._client is not None:
@@ -132,13 +160,10 @@ class GeminiVisionAnalyzer:
             for frame in batch.frames
         ]
         parts.append(
-            types.Part.from_text(
-                text=(
-                    f"These {len(batch.frames)} frames were captured over "
-                    f"{self._config.analysis_batch_seconds:g} second(s) of travel. "
-                    "Describe what is visible."
-                )
-            )
+            types.Part.from_text(text=_build_frame_prompt(
+                batch, self._config.analysis_batch_seconds,
+                tuple(self._recent_observations),
+            ))
         )
         return parts
 
@@ -162,4 +187,9 @@ class GeminiVisionAnalyzer:
         except Exception as error:  # SDK raises a wide range of transport errors
             raise AnalysisError(f"Gemini request failed: {type(error).__name__}: {error}") from error
 
-        return parse_analysis_response(getattr(response, "text", "") or "", batch)
+        analysis = parse_analysis_response(getattr(response, "text", "") or "", batch)
+        self._recent_observations.append(
+            f"Technical: {analysis.technical_description} "
+            f"Narration: {analysis.narration_text}"
+        )
+        return analysis
