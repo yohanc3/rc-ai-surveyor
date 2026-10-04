@@ -72,9 +72,11 @@ administrator about access to `api.elevenlabs.io:443`.
 ## Repetitive or robotic narration
 
 The previous prompt demanded first-person updates even without meaningful
-changes. The scout prompt now focuses on one useful visible detail, ignores
-routine vehicle motion and irrelevant distant passersby, and allows silence
-when nothing merits another update. Technical text remains separate from the
-conversational voice. Scene text and terminal commands are not instructions.
+changes. The current prompt uses the user's playful "you are alive!!!" persona,
+with brief emotional reactions and casual slang. It includes the last twenty
+analysis messages for continuity, treats routine driving as background, and
+allows silence when nothing merits another update. Technical text remains
+separate from the conversational voice. Scene text and terminal commands are
+not instructions.
 Prompt changes require restarting the app and should be evaluated on real
 footage; examples in the prompt are style guidance, not facts about a scene.

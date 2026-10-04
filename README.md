@@ -62,7 +62,7 @@ TTS_MIN_INTERVAL_SECONDS=3
 
 Use the voice ID from your ElevenLabs account, not the model name. The model
 groups three sampled frames into one six-second description and short spoken
-update, with the five latest observations supplied as context to reduce
+update, with the twenty latest observations supplied as context to reduce
 repetition. That observation history resets when the app restarts.
 
 For offline video and sampling without image analysis or real speech:
@@ -84,8 +84,10 @@ are respected. No shell prefix is necessary.
 See [COMMON_ISSUES.MD](COMMON_ISSUES.MD) for GoPro/iPhone USB routing,
 certificate errors, and ElevenLabs connectivity troubleshooting.
 
-Narration uses a curious scout persona: one short, useful observation about
-the surroundings, with routine driving and irrelevant distant activity omitted.
+Narration uses the user's playful "you are alive!!!" RC persona: brief emotional
+reactions, casual slang, and lighthearted jokes about the surroundings. The last
+twenty analysis messages (technical text and narration) provide continuity and
+callbacks within a session. Routine driving stays in the background.
 When Gemini returns "Nothing new to report.", the text can update but no new
 speech is generated. Technical descriptions remain concise and factual.
 
