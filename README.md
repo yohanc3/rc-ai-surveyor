@@ -5,8 +5,8 @@ Low-latency HERO7 Silver video with a backend frame pipeline.
 ```text
 GoPro UDP/H.264 -> MediaMTX -+-> browser WebRTC (live video)
                              |
-                             +-> frame sampler (2 FPS)
-                                  -> 1-second batch (2 frames, newest only)
+                          +-> frame sampler (0.5 FPS)
+                            -> 6-second batch (3 frames, newest only)
                                   -> Gemini vision analysis
                                   -> technical + narration text   -> SSE
                                   -> ElevenLabs streaming TTS     -> MP3
@@ -32,76 +32,162 @@ python3 run.py --setup
 That downloads the `bluenviron/mediamtx` image, builds the dashboard
 (`npm install && npm run build`), and validates the configuration. It is the
 only step that touches the internet. Re-run it only when something changes.
-
-### Step 2 — offline run (on the GoPro network)
-
-1. Connect this machine's Wi-Fi to the GoPro's `GP...` network.
-2. From this directory:
+For live Gemini analysis, also install its SDK now:
 
 ```bash
-python3 run.py
+python3 -m pip install google-genai
 ```
 
-The dashboard opens automatically at:
+On Windows under WSL2 this fails with `externally-managed-environment`; use the
+virtual environment described in [Windows — WSL2](#windows--wsl2) instead.
+
+### Step 2 — connect and run
+
+Connect the laptop to the GoPro's `GP...` Wi-Fi. For live AI, also provide
+internet through USB phone tethering or Ethernet; the GoPro Wi-Fi itself has no
+internet route. Live mode needs both network paths at the same time.
+
+Create `.env` beside `run.py` before starting live mode:
+
+```text
+GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_THINKING_LEVEL=low
+
+ELEVENLABS_API_KEY=your-elevenlabs-key
+ELEVENLABS_VOICE_ID=your-voice-id
+ELEVENLABS_MODEL_ID=eleven_flash_v2_5
+
+ANALYSIS_FPS=0.5
+ANALYSIS_BATCH_SECONDS=6
+TTS_MIN_INTERVAL_SECONDS=3
+```
+
+Use the voice ID from your ElevenLabs account, not the model name. The model
+groups three sampled frames into one six-second description and short spoken
+update, with the five latest observations supplied as context to reduce
+repetition. That observation history resets when the app restarts.
+
+For offline video and sampling without image analysis or real speech:
+
+```bash
+python3 run.py --provider-mode mock
+```
+
+For live Gemini analysis and ElevenLabs speech, use:
+
+```bash
+python3 run.py --provider-mode live
+```
+
+On macOS, the app automatically selects certifi's certificate bundle (or the
+system CA bundle if certifi is unavailable). Existing `SSL_CERT_FILE` settings
+are respected. No shell prefix is necessary.
+
+See [COMMON_ISSUES.MD](COMMON_ISSUES.MD) for GoPro/iPhone USB routing,
+certificate errors, and ElevenLabs connectivity troubleshooting.
+
+Narration uses a curious scout persona: one short, useful observation about
+the surroundings, with routine driving and irrelevant distant activity omitted.
+When Gemini returns "Nothing new to report.", the text can update but no new
+speech is generated. Technical descriptions remain concise and factual.
+
+The dashboard opens at:
 
 ```text
 http://127.0.0.1:8787/
 ```
 
-Nothing in this step reaches the internet: with the default
-`PROVIDER_MODE=mock`, the whole pipeline — video, frame sampling, analysis text
-and narration audio — runs entirely offline. If the MediaMTX image is missing,
-`run.py` says so and points you back at step 1 rather than hanging on a pull it
-cannot complete.
+In live mode, click **Enable audio** once in the dashboard. The native audio
+player also lets you replay the latest generated clip. Successful synthesis is
+logged as `elevenlabs_complete` followed by `audio_published`; `/api/status`
+reports the latest audio and speech counters.
 
 Press `Ctrl+C` once to stop the camera relay, sampler, dashboard, and backend.
 
-### Running the real providers
+The `.env` file is git-ignored. `run.py` refuses live mode when required keys
+are missing. A failed TCP DNS connectivity probe is only a warning: cellular
+networks can block that probe while provider HTTPS still works. Provider
+requests report actual failures. If the MediaMTX image is missing,
+run `python3 run.py --setup` again while connected to regular internet.
 
-Gemini and ElevenLabs are cloud services, so live mode needs internet *while
-running*, in addition to the GoPro Wi-Fi. Per design document section 4 that
-means a second route — ethernet, USB phone tethering, or a second Wi-Fi adapter:
+### macOS — GoPro Wi-Fi plus iPhone USB
 
-`google-genai` is the only third-party dependency, and it is needed for live
-mode alone. Install it into a virtual environment, because distributions that
-follow PEP 668 (Ubuntu 24.04 among them) refuse `pip install` against the system
-interpreter with `error: externally-managed-environment`:
+Keep Wi-Fi on the GoPro and iPhone USB above Wi-Fi in macOS network service
+order. Some cellular connections use IPv6/NAT64 translation. On this Mac,
+ordinary requests to `10.5.5.9` attempted a synthesized IPv6 address and timed
+out, while `curl -4` and explicit IPv4 sockets returned HTTP 200.
+
+Camera status and preview-start requests now use direct IPv4 sockets and skip
+macOS proxy discovery. Cloud requests retain normal IPv4/IPv6 support. This
+does not disable IPv6 on the Mac or alter its network routes. See Apple's
+[DNS64/NAT64 guidance](https://developer.apple.com/support/ipv6/).
+
+### Windows — WSL2
+
+Verified on Windows 11, WSL2 Ubuntu 24.04, `networkingMode=mirrored`. Five
+things differ from the macOS path above.
+
+**Install the SDK into a virtual environment.** Ubuntu 24.04 follows PEP 668,
+so the `python3 -m pip install google-genai` in step 1 fails with
+`error: externally-managed-environment`. Instead:
 
 ```bash
-python3 -m venv .venv                  # online, during step 1
+python3 -m venv .venv
 .venv/bin/pip install google-genai
 ```
 
-Then launch through `start.sh`, which selects `.venv/bin/python` and adds `sg
-docker` when the current shell has not yet picked up the `docker` group:
+**Launch with `start.sh`, not `python3 run.py`.** It selects
+`.venv/bin/python`, the only interpreter that can import `google-genai`, and
+wraps the call in `sg docker` when the shell has not yet picked up the `docker`
+group:
 
 ```bash
 ./start.sh --provider-mode live
 ```
 
-Running `python3 run.py` instead uses the system interpreter, which cannot see
-`google-genai`; live mode then degrades to repeated `gemini_retry` and
-`gemini_degraded` lines reporting the missing import.
+`python3 run.py` still works for mock mode, but in live mode it degrades to
+repeated `gemini_retry` and `gemini_degraded` lines reporting the missing
+import.
 
-Put the keys in a `.env` file beside `run.py` (it is git-ignored):
+**Windows owns the Wi-Fi.** WSL2 has no radio and routes through whatever the
+host is joined to, so the camera network is joined on the Windows side:
 
-```text
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.8-flash
-GEMINI_THINKING_LEVEL=low
-
-ELEVENLABS_API_KEY=
-ELEVENLABS_VOICE_ID=
-ELEVENLABS_MODEL_ID=eleven_flash_v2_5
-
-ANALYSIS_FPS=2
-ANALYSIS_BATCH_SECONDS=1
-TTS_MIN_INTERVAL_SECONDS=3
-PROVIDER_MODE=mock
+```powershell
+netsh wlan connect name=<your GoPro SSID>
 ```
 
-`run.py` refuses to start in live mode without the required keys, and refuses if
-no internet route is present, rather than failing once frames are flowing.
+USB phone tethering replaces iPhone USB and appears as its own adapter. The
+GoPro hands out a default gateway despite having no internet, so if internet
+drops once the camera is joined, demote Wi-Fi below the tether in an
+Administrator PowerShell:
+
+```powershell
+Set-NetIPInterface -InterfaceAlias "Wi-Fi" -InterfaceMetric 60
+```
+
+**Allow the camera's UDP stream through Windows Firewall.** The HERO7 pushes
+MPEG-TS over UDP to port 8554. Windows ships inbound rules for TCP 8554 only,
+so without this rule the camera's HTTP control endpoint answers, the startup
+check passes, and no frame ever arrives — the sampler logs
+`waiting for video; retrying` indefinitely. In an Administrator PowerShell:
+
+```powershell
+New-NetFirewallRule -DisplayName "GoPro UDP 8554" -Direction Inbound `
+  -Protocol UDP -LocalPort 8554 -Action Allow
+```
+
+**Do not run `run.py` under `sudo`.** It creates a root-owned `var/`, after
+which every narration fails with `PermissionError` while the rest of the
+pipeline keeps running normally. Recover with
+`sudo chown -R "$USER:$USER" var`.
+
+A note on `npm`: if `npm` resolves to the Windows binary under
+`/mnt/c/Program Files/nodejs`, the dashboard build in `--setup` fails with
+`EISDIR` because Windows cannot `lstat` WSL directories across the
+`\\wsl.localhost` boundary. Install a Linux Node to build the frontend. A
+prebuilt `frontend/dist` is served as-is, and `static/` is the fallback when no
+build exists, so this blocks nothing at run time.
 
 ### ElevenLabs smoke test
 
@@ -115,9 +201,32 @@ python3 test.py
 
 It uses the configured `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID`, falling
 back to the example voice and `eleven_v3`, then plays the returned audio. Set
-`ELEVENLABS_TEST_TEXT` to change the spoken sentence. The script retries
-transport failures, saves successful audio to `var/elevenlabs-test.mp3`, and
+`ELEVENLABS_TEST_TEXT` to change the spoken sentence. The script saves
+successful audio to `var/elevenlabs-test.mp3`, and
 only reports success after the SDK's lazy audio iterator has actually finished.
+Paid requests are not automatically retried if their response is lost.
+
+To check HTTPS and account access without generating speech:
+
+```bash
+python3 test.py --check
+```
+
+This check uses the standard library and reports network failures separately
+from HTTP authentication/permission errors. A TTS-only key may lack permission
+to read subscription metadata. On macOS, the check and backend use the system
+CA bundle if Python has no default certificate store; TLS verification remains
+enabled.
+
+On the network tested on 2026-10-03, TCP connections to ElevenLabs succeed but
+TLS is reset when its hostname is sent. Both the global API and documented US
+API endpoint are affected, while other HTTPS sites work. This strongly suggests
+hostname-based filtering along that network path, but the responsible device
+is unconfirmed. Use a different internet connection (for example phone USB
+tethering) or ask the network administrator to allow `api.elevenlabs.io` on TCP
+443. Repeated API calls and changing the key cannot fix a pre-HTTP TLS reset.
+See [ElevenLabs authentication](https://elevenlabs.io/docs/api-reference/authentication)
+and [official endpoint guidance](https://elevenlabs.io/docs/eleven-api/guides/how-to/best-practices/latency-optimization).
 
 ### Tests
 

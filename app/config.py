@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from .tls import configure_macos_certificates
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
@@ -96,16 +97,17 @@ class Config:
 
 def load_config(sample_fps: float | None = None, provider_mode: str | None = None) -> Config:
     load_env_file(PROJECT_DIR / ".env")
+    configure_macos_certificates()
 
     mode = (provider_mode or os.environ.get("PROVIDER_MODE") or MOCK).strip().lower()
     if mode not in (MOCK, LIVE):
         raise ConfigError(f"PROVIDER_MODE must be '{MOCK}' or '{LIVE}', got {mode!r}")
 
-    analysis_fps = sample_fps if sample_fps is not None else _float("ANALYSIS_FPS", 2.0)
+    analysis_fps = sample_fps if sample_fps is not None else _float("ANALYSIS_FPS", 0.5)
     if analysis_fps <= 0:
         raise ConfigError("analysis FPS must be greater than zero")
 
-    batch_seconds = _float("ANALYSIS_BATCH_SECONDS", 1.0)
+    batch_seconds = _float("ANALYSIS_BATCH_SECONDS", 6.0)
     if batch_seconds <= 0:
         raise ConfigError("ANALYSIS_BATCH_SECONDS must be greater than zero")
 

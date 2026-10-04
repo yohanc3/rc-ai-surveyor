@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from unittest.mock import patch
 
 from app.config import load_config
 from app.models import Frame, utc_now
@@ -26,14 +27,9 @@ def wait_until(predicate, timeout=6.0, interval=0.01, message="condition not met
 
 
 def make_config(**overrides):
-    for key in (
-        "PROVIDER_MODE", "GEMINI_API_KEY", "ELEVENLABS_API_KEY",
-        "ELEVENLABS_VOICE_ID", "ANALYSIS_FPS", "ANALYSIS_BATCH_SECONDS",
-        "TTS_MIN_INTERVAL_SECONDS", "AUDIO_DIR", "AUDIO_RETENTION",
-    ):
-        os.environ.pop(key, None)
-    os.environ.update({k: str(v) for k, v in overrides.items()})
-    return load_config()
+    with patch.dict(os.environ, {}, clear=True), patch("app.config.load_env_file"):
+        os.environ.update({key: str(value) for key, value in overrides.items()})
+        return load_config()
 
 
 def make_frame(sequence: int) -> Frame:

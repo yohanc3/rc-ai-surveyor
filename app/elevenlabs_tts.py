@@ -11,6 +11,7 @@ import urllib.request
 from .audio_store import AudioStore
 from .config import Config
 from .models import Analysis, AnalysisError, AudioResult
+from .tls import verified_context
 
 log = logging.getLogger("rc.elevenlabs")
 
@@ -56,7 +57,8 @@ class ElevenLabsSpeechSynthesizer:
         chunks: list[bytes] = []
         try:
             with urllib.request.urlopen(
-                request, timeout=self._config.elevenlabs_timeout_seconds
+                request, timeout=self._config.elevenlabs_timeout_seconds,
+                context=verified_context(),
             ) as response:
                 while True:
                     chunk = response.read(CHUNK)
@@ -70,11 +72,14 @@ class ElevenLabsSpeechSynthesizer:
                 detail = error.read(512).decode("utf-8", "replace")
             except Exception:
                 pass
+            detail = detail.replace(self._config.elevenlabs_api_key, "[REDACTED]")
             raise AnalysisError(
                 f"ElevenLabs returned HTTP {error.code}: {detail[:200]}"
             ) from error
         except urllib.error.URLError as error:
             raise AnalysisError(f"ElevenLabs unreachable: {error.reason}") from error
+        except OSError as error:
+            raise AnalysisError(f"ElevenLabs transport failed: {error}") from error
 
         audio = b"".join(chunks)
         if not audio:

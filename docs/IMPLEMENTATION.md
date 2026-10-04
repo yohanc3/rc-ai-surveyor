@@ -16,9 +16,9 @@ GoPro (UDP MPEG-TS/H.264, 10.5.5.9)
          |
       MediaMTX (Docker)
        /          \
-  browser WebRTC   frame sampler (2 fps JPEG)
+  browser WebRTC   frame sampler (0.5 fps JPEG)
    (live video)         |
-                   1-second batch (2 frames, newest only)
+                   6-second batch (3 frames, newest only)
                         |
                    Gemini vision  -> technical + narration text -> SSE
                         |
@@ -36,7 +36,7 @@ app/config.py            env + .env loading, validation, redacted logging
 app/models.py            Frame, FrameBatch, Analysis, AudioResult, ids, health
 app/frame_pipeline.py    batching, bounded workers, retry and speech policy
 app/providers.py         VisionAnalyzer / SpeechSynthesizer protocols + mocks
-app/gemini_analyzer.py   google-genai call, prompt, response validation
+app/gemini_analyzer.py   google-genai call, concise prompt, recent observations
 app/elevenlabs_tts.py    streaming TTS over plain HTTP
 app/audio_store.py       atomic publish, retention ring, id validation
 app/events.py            fan-out bus behind the SSE endpoint
@@ -71,6 +71,11 @@ reconnecting browser is immediately consistent.
   interrupted; a newer clip replaces only what is queued and unplayed.
 - Transient provider errors retry once with jitter. Schema rejections never
   retry; the dashboard degrades and keeps the last good text.
+- Mock vision output explicitly says it is not derived from camera pixels;
+  frame-grounded descriptions require live Gemini mode.
+- Live Gemini receives three frames per six-second request by default and has
+  the five most recent validated observations available to avoid repetition.
+- Technical notes are concise; spoken narration is a short first-person update.
 - Every analysis carries one id through logs, SSE and the audio URL.
 - All durations use the monotonic clock, so a system clock step cannot distort
   a reported rate or age.
@@ -81,13 +86,16 @@ Two phases, because the GoPro's Wi-Fi has no internet:
 
 ```bash
 python3 run.py --setup   # online once: Docker image + dashboard build
-./start.sh               # on the GoPro network: needs nothing from the net
+python3 run.py           # on the GoPro network: needs nothing from the net
 ```
 
-`start.sh` runs `run.py` under `.venv/bin/python`, which is the only
-interpreter that can import `google-genai` on a PEP 668 distribution, and wraps
-the call in `sg docker` when the shell has not yet picked up the `docker`
-group. Mock mode works under either interpreter; live mode does not.
+On Windows under WSL2, substitute `./start.sh` for `python3 run.py`. It runs
+`run.py` under `.venv/bin/python`, the only interpreter that can import
+`google-genai` on a PEP 668 distribution, and wraps the call in `sg docker`
+when the shell has not yet picked up the `docker` group. Mock mode works under
+either interpreter; live mode does not. The README's Windows section covers the
+rest of that path, including the inbound UDP firewall rule the camera stream
+needs.
 
 With the default `PROVIDER_MODE=mock`, the whole pipeline runs offline with no
 API key and no third-party package. `PROVIDER_MODE=live` calls the real
@@ -111,7 +119,7 @@ analysis text in the browser, so the whole UI is explorable with no hardware.
 python3 -m unittest discover -s tests -t .
 ```
 
-45 tests, standard library only: no pip install, no network, no camera. They
+47 tests, standard library only: no pip install, no network, no camera. They
 cover batching and backpressure accounting, the retry policy, speech
 de-duplication and cooldown, every endpoint, SSE delivery and reconnect, and
 path traversal on both static files and audio ids. One integration test drives
@@ -119,10 +127,17 @@ the real pipeline behind the real HTTP server.
 
 ## Known gaps
 
+- **Live Gemini analysis has been exercised successfully.** Frames from the
+  GoPro reached Gemini and produced successful responses.
+- **Live ElevenLabs synthesis has now also succeeded**, on Linux/WSL with the
+  default certificate store: four narrations, zero failures, 143-154 kB MP3s.
+  The TLS verification failure recorded earlier was specific to macOS trust
+  configuration, not to the request construction; see `app/tls.py`.
+- The GoPro sampling path has run end to end, though startup emitted transient
+  MPEG-TS/H.264 warnings before frames began flowing.
 - Measured provider latency is far above the mock assumption. See
-  [First live run](#first-live-run); at roughly three seconds per Gemini call
-  the sampler outruns analysis and about half of all batches are dropped by the
-  newest-wins policy. Lowering `--sample-fps` is the available lever.
+  [First live run](#first-live-run). That run predates the current 0.5 fps,
+  six-second batch defaults, which were chosen to address exactly this.
 - Deliberate deviations from the proposal: the stdlib HTTP server is kept
   instead of FastAPI, and ElevenLabs is called over plain HTTP instead of its
   SDK. Both keep mock mode free of third-party dependencies, which is what lets
@@ -131,8 +146,11 @@ the real pipeline behind the real HTTP server.
 
 ## First live run
 
-Recorded 2026-10-03, HERO7 Silver over its own Wi-Fi with a USB-tethered phone
-supplying the second route. This was the first execution of either provider.
+Recorded 2026-10-03 on Windows 11 / WSL2 Ubuntu 24.04, HERO7 Silver over its
+own Wi-Fi with a USB-tethered phone supplying the second route. This was the
+first execution of ElevenLabs end to end, and it ran at the old 2 fps,
+one-second, two-frame cadence — before the 0.5 fps six-second defaults. The
+latency figures still hold; the backpressure ratio no longer does.
 
 | Stage | Measured |
 | --- | --- |
@@ -153,12 +171,12 @@ of 8. The pipeline behaves correctly under that load, but narration trails the
 live video by roughly three seconds, and half of the analysis spend is
 discarded by design.
 
-Two levers exist today: `--sample-fps 1` roughly halves the request rate, and
-raising `ANALYSIS_BATCH_SECONDS` widens the window. Gating analysis on scene
-change, listed as an open question in design document section 14, would address
-the cause rather than the symptom.
+The 0.5 fps, six-second, three-frame defaults now on main are the response to
+exactly this, and they should eliminate the drop ratio above. Gating analysis
+on scene change, listed as an open question in design document section 14,
+would address the cause rather than the symptom.
 
-Environment notes from the same session, each of which cost time:
+Windows/WSL2 environment notes from the same session, each of which cost time:
 
 - `docker_image_present()` runs `docker image inspect` and treats any non-zero
   exit as a missing image. A permission error from an unjoined `docker` group

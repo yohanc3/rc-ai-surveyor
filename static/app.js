@@ -21,6 +21,7 @@ let usingFallback = false;
 let lastFrameSeq = 0;
 let lastAudioId = null;
 let audioEnabled = false;
+let queuedAudio = null;
 
 const MAX_WHEP_ATTEMPTS = 2;
 
@@ -157,6 +158,18 @@ el('enable-audio').addEventListener('click', () => {
   audioEnabled = true;
   el('enable-audio').hidden = true;
   player.hidden = false;
+  if (player.paused && queuedAudio) {
+    player.src = queuedAudio.audio_url;
+    queuedAudio = null;
+  }
+  player.play().catch(() => {});
+});
+
+player.addEventListener('ended', () => {
+  if (!audioEnabled || !queuedAudio) return;
+  const nextAudio = queuedAudio;
+  queuedAudio = null;
+  player.src = nextAudio.audio_url;
   player.play().catch(() => {});
 });
 
@@ -221,9 +234,14 @@ function renderAnalysis(status) {
   const audio = status.latest_audio;
   if (audio && audio.analysis_id !== lastAudioId) {
     lastAudioId = audio.analysis_id;
-    player.src = audio.audio_url;
     player.hidden = false;
-    if (audioEnabled) player.play().catch(() => {});
+    if (!player.paused && !player.ended) {
+      queuedAudio = audio;
+    } else {
+      queuedAudio = null;
+      player.src = audio.audio_url;
+      if (audioEnabled) player.play().catch(() => {});
+    }
   }
 }
 

@@ -7,7 +7,6 @@ no internet connection.
 from __future__ import annotations
 
 import asyncio
-import random
 from typing import Protocol
 
 from .models import Analysis, AudioResult, FrameBatch, new_analysis_id
@@ -32,32 +31,8 @@ class SpeechSynthesizer(Protocol):
     async def synthesize(self, analysis: Analysis) -> AudioResult: ...
 
 
-_MOCK_SCENES = [
-    (
-        "Two crates beside the lower-left window frame, approximately four metres ahead.",
-        "There are a couple of crates just ahead and slightly to the left. "
-        "There is plenty of room to pass.",
-    ),
-    (
-        "Hairline crack roughly twenty centimetres long on the near wall; severity "
-        "uncertain from this angle.",
-        "I can see a short crack on the wall nearby. It may need a closer look to "
-        "tell how serious it is.",
-    ),
-    (
-        "Ground plane flat and clear within two metres. Lighting is low contrast.",
-        "The ground right in front looks flat and clear. It is a little dim in here.",
-    ),
-    (
-        "Vertical object entering frame right, approximately sixty centimetres tall, "
-        "stationary across both frames.",
-        "Something short and upright is coming into view on the right. It is not moving.",
-    ),
-]
-
-
 class MockVisionAnalyzer:
-    """Deterministic-ish stand-in for Gemini, with a configurable fake latency."""
+    """Offline stand-in that clearly reports it does not inspect frame pixels."""
 
     def __init__(self, latency_seconds: float = 0.6, fail_every: int = 0) -> None:
         self._latency = latency_seconds
@@ -69,13 +44,16 @@ class MockVisionAnalyzer:
         await asyncio.sleep(self._latency)
         if self._fail_every and self._calls % self._fail_every == 0:
             raise RuntimeError("mock gemini failure")
-        technical, narration = _MOCK_SCENES[(self._calls - 1) % len(_MOCK_SCENES)]
         return Analysis(
             analysis_id=batch.analysis_id,
             frame_sequences=batch.sequences,
             captured_at=batch.captured_at,
-            technical_description=technical,
-            narration_text=narration,
+            technical_description=(
+                "Mock provider active; this description was not derived from the camera frame."
+            ),
+            narration_text=(
+                "Mock mode is active, so I am not analyzing the camera image."
+            ),
         )
 
 

@@ -6,31 +6,13 @@
 const WIDTH = 480;
 const HEIGHT = 270;
 
-// Mirrors app/providers.py so the demo reads like the real mock provider.
+// Demo output is intentionally labeled as synthetic, never camera analysis.
 const SCENES = [
   {
     technical_description:
-      'Two crates beside the lower-left window frame, approximately four metres ahead.',
+      'Synthetic demo scene; this description was not derived from camera pixels.',
     narration_text:
-      'There are a couple of crates just ahead and slightly to the left. There is plenty of room to pass.',
-  },
-  {
-    technical_description:
-      'Hairline crack roughly twenty centimetres long on the near wall; severity uncertain from this angle.',
-    narration_text:
-      'I can see a short crack on the wall nearby. It may need a closer look to tell how serious it is.',
-  },
-  {
-    technical_description:
-      'Ground plane flat and clear within two metres. Lighting is low contrast.',
-    narration_text:
-      'The ground right in front looks flat and clear. It is a little dim in here.',
-  },
-  {
-    technical_description:
-      'Vertical object entering frame right, approximately sixty centimetres tall, stationary across both frames.',
-    narration_text:
-      'Something short and upright is coming into view on the right. It is not moving.',
+      'This is synthetic demo output, not an analysis of the camera image.',
   },
 ];
 
@@ -101,7 +83,7 @@ function silentMp3Url(seconds) {
   return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
 }
 
-export function createMockBackend({ sampleFps = 2, onEvent } = {}) {
+export function createMockBackend({ sampleFps = 0.5, batchSeconds = 6, onEvent } = {}) {
   const started = performance.now();
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
@@ -196,7 +178,7 @@ export function createMockBackend({ sampleFps = 2, onEvent } = {}) {
     frameUrl = dataUrl;
 
     // One analysis per batching window, matching ANALYSIS_BATCH_SECONDS.
-    const framesPerBatch = Math.max(1, Math.round(sampleFps));
+    const framesPerBatch = Math.max(1, Math.round(sampleFps * batchSeconds));
     if (frameCount % framesPerBatch === 0) {
       analyses += 1;
       const scene = SCENES[(analyses - 1) % SCENES.length];
@@ -204,7 +186,10 @@ export function createMockBackend({ sampleFps = 2, onEvent } = {}) {
       const event = {
         type: 'analysis',
         analysis_id: analysisId,
-        frame_sequences: [frameCount - framesPerBatch + 1, frameCount],
+        frame_sequences: Array.from(
+          { length: framesPerBatch },
+          (_, index) => frameCount - framesPerBatch + index + 1,
+        ),
         captured_at: new Date().toISOString().replace(/\.(\d{3})\d*Z$/, '.$1Z'),
         ...scene,
       };
@@ -232,6 +217,7 @@ export function createMockBackend({ sampleFps = 2, onEvent } = {}) {
     mode: 'demo',
     config: {
       sample_fps: sampleFps,
+      analysis_batch_seconds: batchSeconds,
       whep_url: null,
       media_url: null,
       provider_mode: 'mock (browser demo)',

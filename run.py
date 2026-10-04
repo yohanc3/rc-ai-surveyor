@@ -24,6 +24,7 @@ import webbrowser
 from http.server import ThreadingHTTPServer
 
 from app.audio_store import AudioStore
+from app.camera_http import open_camera
 from app.config import ConfigError, load_config
 from app.events import EventBus
 from app.frame_pipeline import AnalysisPipeline
@@ -57,12 +58,12 @@ def camera_url(camera_ip: str, path: str) -> str:
 def check_camera(camera_ip: str) -> None:
     url = camera_url(camera_ip, "/gp/gpControl/status")
     try:
-        with urllib.request.urlopen(url, timeout=4) as response:
+        with open_camera(url, timeout=4) as response:
             response.read(1)
     except (OSError, urllib.error.URLError) as error:
         raise RuntimeError(
             f"GoPro is not reachable at {camera_ip}. "
-            "Connect this machine to the camera's GP Wi-Fi network first."
+            f"Connect this machine to the camera's GP Wi-Fi network first. Detail: {error}"
         ) from error
 
 
@@ -80,7 +81,7 @@ def request_camera_preview(camera_ip: str) -> None:
     )
     request = urllib.request.Request(url, headers={"Connection": "close"})
     try:
-        with urllib.request.urlopen(request, timeout=5) as response:
+        with open_camera(request, timeout=5) as response:
             response.read()
         log.info("camera preview started")
     except urllib.error.HTTPError as error:
@@ -387,7 +388,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ice-port", type=int, default=8189)
     parser.add_argument("--dashboard-port", type=int, default=8787)
     parser.add_argument("--sample-fps", type=float, default=None,
-                        help="analysis sampling rate (default: ANALYSIS_FPS or 2)")
+                        help="analysis sampling rate (default: ANALYSIS_FPS or 0.5)")
     parser.add_argument("--provider-mode", choices=("mock", "live"), default=None,
                         help="mock needs no internet; live calls Gemini and ElevenLabs")
     parser.add_argument("--no-browser", action="store_true")
@@ -416,10 +417,10 @@ def main() -> int:
     check_camera(args.camera_ip)
 
     if config.is_live and not has_internet():
-        raise RuntimeError(
-            "PROVIDER_MODE=live needs an internet route in addition to the GoPro "
-            "Wi-Fi (ethernet or phone tethering). Use --provider-mode mock to run "
-            "entirely offline."
+        log.warning(
+            "The TCP probe to 8.8.8.8:53 failed; this does not prove HTTPS "
+            "is unavailable on cellular. Continuing with live providers; "
+            "their actual requests will report connectivity errors."
         )
 
     stopping = threading.Event()
