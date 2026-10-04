@@ -99,7 +99,9 @@ python3 test.py
 
 It uses the configured `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID`, falling
 back to the example voice and `eleven_v3`, then plays the returned audio. Set
-`ELEVENLABS_TEST_TEXT` to change the spoken sentence.
+`ELEVENLABS_TEST_TEXT` to change the spoken sentence. The script retries
+transport failures, saves successful audio to `var/elevenlabs-test.mp3`, and
+only reports success after the SDK's lazy audio iterator has actually finished.
 
 ### Tests
 
