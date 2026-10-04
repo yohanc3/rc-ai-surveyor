@@ -81,8 +81,13 @@ Two phases, because the GoPro's Wi-Fi has no internet:
 
 ```bash
 python3 run.py --setup   # online once: Docker image + dashboard build
-python3 run.py           # on the GoPro network: needs nothing from the net
+./start.sh               # on the GoPro network: needs nothing from the net
 ```
+
+`start.sh` runs `run.py` under `.venv/bin/python`, which is the only
+interpreter that can import `google-genai` on a PEP 668 distribution, and wraps
+the call in `sg docker` when the shell has not yet picked up the `docker`
+group. Mock mode works under either interpreter; live mode does not.
 
 With the default `PROVIDER_MODE=mock`, the whole pipeline runs offline with no
 API key and no third-party package. `PROVIDER_MODE=live` calls the real
@@ -114,14 +119,53 @@ the real pipeline behind the real HTTP server.
 
 ## Known gaps
 
-- **The live providers have never been executed.** No API key or reachable
-  network was available during development. Prompt building, response
-  validation and request construction are tested; no request has been made to
-  Gemini or ElevenLabs. Confirm `GEMINI_MODEL` and `ELEVENLABS_MODEL_ID` are
-  current before the first live run.
-- The camera path (Docker, FFmpeg, GoPro) is likewise untested end to end.
+- Measured provider latency is far above the mock assumption. See
+  [First live run](#first-live-run); at roughly three seconds per Gemini call
+  the sampler outruns analysis and about half of all batches are dropped by the
+  newest-wins policy. Lowering `--sample-fps` is the available lever.
 - Deliberate deviations from the proposal: the stdlib HTTP server is kept
   instead of FastAPI, and ElevenLabs is called over plain HTTP instead of its
   SDK. Both keep mock mode free of third-party dependencies, which is what lets
   the system run offline.
 - Audio is served whole, with no HTTP range support. Fine for short clips.
+
+## First live run
+
+Recorded 2026-10-03, HERO7 Silver over its own Wi-Fi with a USB-tethered phone
+supplying the second route. This was the first execution of either provider.
+
+| Stage | Measured |
+| --- | --- |
+| Gemini vision | 2496–3918 ms per two-frame batch |
+| ElevenLabs TTS | 645–778 ms, 143–154 kB per MP3 |
+| Frame sampling | 1.8 fps sustained, no relay restarts |
+| Speech | 4 succeeded, 0 failed |
+| Backpressure | 8 batches created, 4 dropped |
+
+Gemini described the scene accurately, including objects outside the prompt's
+survey vocabulary, so the two-frame inline JPEG request shape works as designed.
+
+The result that matters is the latency. `MockVisionAnalyzer` assumes 600 ms;
+the real model takes about five times that. One request in flight plus a
+one-second batch window means the sampler produces batches faster than analysis
+consumes them, and the newest-wins rule discards the excess — hence 4 dropped
+of 8. The pipeline behaves correctly under that load, but narration trails the
+live video by roughly three seconds, and half of the analysis spend is
+discarded by design.
+
+Two levers exist today: `--sample-fps 1` roughly halves the request rate, and
+raising `ANALYSIS_BATCH_SECONDS` widens the window. Gating analysis on scene
+change, listed as an open question in design document section 14, would address
+the cause rather than the symptom.
+
+Environment notes from the same session, each of which cost time:
+
+- `docker_image_present()` runs `docker image inspect` and treats any non-zero
+  exit as a missing image. A permission error from an unjoined `docker` group
+  therefore reports "the image is not downloaded", pointing at the wrong fix.
+- The HERO7 streams MPEG-TS over **UDP** to port 8554. A host firewall allowing
+  only TCP on that port drops every frame while leaving the camera's HTTP
+  control endpoint reachable, so the camera check passes and no video arrives.
+- Running `run.py` once under `sudo` creates a root-owned `var/`, after which
+  the audio store fails with `PermissionError` on every narration while the
+  rest of the pipeline continues normally.

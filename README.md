@@ -62,10 +62,26 @@ Gemini and ElevenLabs are cloud services, so live mode needs internet *while
 running*, in addition to the GoPro Wi-Fi. Per design document section 4 that
 means a second route — ethernet, USB phone tethering, or a second Wi-Fi adapter:
 
+`google-genai` is the only third-party dependency, and it is needed for live
+mode alone. Install it into a virtual environment, because distributions that
+follow PEP 668 (Ubuntu 24.04 among them) refuse `pip install` against the system
+interpreter with `error: externally-managed-environment`:
+
 ```bash
-pip install google-genai          # online, during step 1
-PROVIDER_MODE=live python3 run.py
+python3 -m venv .venv                  # online, during step 1
+.venv/bin/pip install google-genai
 ```
+
+Then launch through `start.sh`, which selects `.venv/bin/python` and adds `sg
+docker` when the current shell has not yet picked up the `docker` group:
+
+```bash
+./start.sh --provider-mode live
+```
+
+Running `python3 run.py` instead uses the system interpreter, which cannot see
+`google-genai`; live mode then degrades to repeated `gemini_retry` and
+`gemini_degraded` lines reporting the missing import.
 
 Put the keys in a `.env` file beside `run.py` (it is git-ignored):
 
