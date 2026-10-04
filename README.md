@@ -77,14 +77,17 @@ For live Gemini analysis and ElevenLabs speech, use:
 python3 run.py --provider-mode live
 ```
 
-On macOS with the python.org Python 3.14 install, if certificate verification
-fails and `Install Certificates.command` cannot update `certifi`, launch with
-its installed CA bundle explicitly selected:
+On macOS, the app automatically selects certifi's certificate bundle (or the
+system CA bundle if certifi is unavailable). Existing `SSL_CERT_FILE` settings
+are respected. No shell prefix is necessary.
 
-```bash
-SSL_CERT_FILE="$(python3 -c 'import certifi; print(certifi.where())')" \
-  python3 run.py --provider-mode live
-```
+See [COMMON_ISSUES.MD](COMMON_ISSUES.MD) for GoPro/iPhone USB routing,
+certificate errors, and ElevenLabs connectivity troubleshooting.
+
+Narration uses a curious scout persona: one short, useful observation about
+the surroundings, with routine driving and irrelevant distant activity omitted.
+When Gemini returns "Nothing new to report.", the text can update but no new
+speech is generated. Technical descriptions remain concise and factual.
 
 The dashboard opens at:
 

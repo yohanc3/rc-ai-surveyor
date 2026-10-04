@@ -239,6 +239,11 @@ class AnalysisPipeline:
     # ---------- speech stage ----------
 
     def _offer_narration(self, analysis: Analysis) -> None:
+        if analysis.narration_text.strip() == "Nothing new to report.":
+            self._pending_narration = None
+            self._narration_ready.clear()
+            log.info("speech_skipped_no_news analysis_id=%s", analysis.analysis_id)
+            return
         if analysis.narration_text == self._last_narration_text:
             with self._metrics_lock:
                 self._metrics.speech_skipped_duplicate += 1

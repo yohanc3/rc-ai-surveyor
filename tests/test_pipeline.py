@@ -7,6 +7,8 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import MagicMock
+from types import SimpleNamespace
 from pathlib import Path
 
 from app.audio_store import AudioStore
@@ -119,6 +121,20 @@ class PipelineTestCase(unittest.TestCase):
 
 
 class TestEndToEnd(PipelineTestCase):
+    def test_no_news_clears_pending_speech(self):
+        pipeline = AnalysisPipeline(
+            self.config, RecordingAnalyzer(), RecordingSynthesizer(self.store),
+            self.bus, self.state,
+        )
+        pipeline._narration_ready = MagicMock()
+        pipeline._pending_narration = object()
+        pipeline._offer_narration(SimpleNamespace(
+            narration_text="Nothing new to report.", analysis_id="quiet-scene"
+        ))
+        self.assertIsNone(pipeline._pending_narration)
+        pipeline._narration_ready.clear.assert_called_once()
+        pipeline._narration_ready.set.assert_not_called()
+
     def test_two_frames_produce_analysis_then_audio(self):
         synth = RecordingSynthesizer(self.store)
         pipeline = self.build(MockVisionAnalyzer(latency_seconds=0.0), synth)

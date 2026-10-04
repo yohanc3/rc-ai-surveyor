@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from .tls import configure_macos_certificates
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
@@ -96,6 +97,7 @@ class Config:
 
 def load_config(sample_fps: float | None = None, provider_mode: str | None = None) -> Config:
     load_env_file(PROJECT_DIR / ".env")
+    configure_macos_certificates()
 
     mode = (provider_mode or os.environ.get("PROVIDER_MODE") or MOCK).strip().lower()
     if mode not in (MOCK, LIVE):

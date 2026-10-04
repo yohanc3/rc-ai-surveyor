@@ -7,7 +7,7 @@ import urllib.request
 from pathlib import Path
 
 from app.config import PROJECT_DIR, load_env_file
-from app.tls import verified_context
+from app.tls import verified_context, configure_macos_certificates
 
 
 def check_connection(api_key: str) -> int:
@@ -43,6 +43,7 @@ def main() -> None:
                         help="check HTTPS/account access without generating speech")
     args = parser.parse_args()
     load_env_file(PROJECT_DIR / ".env")
+    configure_macos_certificates()
 
     api_key = os.getenv("ELEVENLABS_API_KEY", "").strip()
     if not api_key:

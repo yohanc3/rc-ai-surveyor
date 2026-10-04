@@ -2,16 +2,40 @@
 
 import contextlib
 import io
+import os
+import sys
 import ssl
 import unittest
 import urllib.error
 from unittest.mock import MagicMock, patch
 
-from app.tls import verified_context
+from app.tls import verified_context, configure_macos_certificates
 from test import check_connection
 
 
 class ConnectivityTests(unittest.TestCase):
+    def test_macos_selects_certifi_for_cloud_sdks(self):
+        certifi = MagicMock()
+        certifi.where.return_value = "/mock/ca.pem"
+        with patch.dict(os.environ, {}, clear=True), \
+             patch.dict(sys.modules, {"certifi": certifi}), \
+             patch("app.tls.sys.platform", "darwin"), \
+             patch("app.tls.Path.is_file", return_value=True):
+            configure_macos_certificates()
+            self.assertEqual(os.environ["SSL_CERT_FILE"], "/mock/ca.pem")
+
+    def test_explicit_ca_setting_is_preserved(self):
+        with patch.dict(os.environ, {"SSL_CERT_FILE": "/custom.pem"}), \
+             patch("app.tls.sys.platform", "darwin"):
+            configure_macos_certificates()
+            self.assertEqual(os.environ["SSL_CERT_FILE"], "/custom.pem")
+
+    def test_other_platforms_are_unchanged(self):
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("app.tls.sys.platform", "linux"):
+            configure_macos_certificates()
+            self.assertNotIn("SSL_CERT_FILE", os.environ)
+
     def test_mac_without_python_cas_loads_system_bundle(self):
         context = MagicMock()
         context.get_ca_certs.return_value = []
