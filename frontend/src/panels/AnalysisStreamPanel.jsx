@@ -1,39 +1,66 @@
 import { Panel } from '../components/Panel';
+import { EmptyState } from '../components/EmptyState';
+import { Icon, SoundBars } from '../components/Icon';
+import { EMPTY } from '../lib/labels';
 import { formatClock } from '../lib/format';
 
 /**
- * Rolling history of model output. The hook only admits an analysis whose id is
- * newer than the one already shown, so entries here are always in order.
+ * The transcript — what the camera has described, newest first.
+ *
+ * This is the product, so it gets the most room and the clearest type. Each
+ * entry leads with the spoken sentence; the shorter factual line sits beneath
+ * as supporting detail. The internal identifier is deliberately absent from
+ * the interface — it stays in the logs, where it is actually useful.
  */
-export function AnalysisStreamPanel({ analyses, status }) {
-  const mode = status?.provider_mode ?? '';
+export function AnalysisStreamPanel({ analyses, status, latestAudio }) {
+  const isPractice = (status?.provider_mode ?? '').startsWith('mock');
+  const empty = isPractice ? EMPTY.observationsPractice : EMPTY.observations;
+  const speakingId = latestAudio?.analysis_id;
 
   return (
-    <Panel title="Analysis stream" className="span-2">
+    <Panel
+      title={
+        <>
+          <Icon name="sparkle" size={17} />
+          What the camera sees
+        </>
+      }
+      subtitle={analyses.length ? `${analyses.length} most recent` : undefined}
+      className="span-2"
+    >
       {analyses.length === 0 ? (
-        <p className="muted">
-          {mode.startsWith('mock')
-            ? 'Waiting for the first mock analysis…'
-            : 'Waiting for the first analysis. Each one appears here as a timestamped entry.'}
-        </p>
+        <EmptyState icon="sparkle" title={empty.title} hint={empty.hint} />
       ) : (
-        <ul className="thoughts">
-          {analyses.map((item) => (
-            <li key={item.analysis_id}>
-              <div className="thought-meta">
-                <span className="tag">frames {item.frame_sequences?.join('–')}</span>
-                <time>{formatClock(item.received_at ?? item.captured_at)}</time>
-                {item.audio_url ? <span className="chip">audio</span> : null}
-                <code className="id" title={item.analysis_id}>
-                  {item.analysis_id.slice(-6)}
-                </code>
-              </div>
-              <div className="thought-body">
-                <p className="technical">{item.technical_description}</p>
-                <p className="narration">{item.narration_text}</p>
-              </div>
-            </li>
-          ))}
+        <ul className="feed">
+          {analyses.map((item, index) => {
+            const spoken = Boolean(item.audio_url);
+            const isSpeaking = spoken && item.analysis_id === speakingId;
+            return (
+              <li
+                key={item.analysis_id}
+                className={index === 0 ? 'is-latest' : undefined}
+              >
+                <p className="feed-said">{item.narration_text}</p>
+                {item.technical_description ? (
+                  <p className="feed-detail">{item.technical_description}</p>
+                ) : null}
+                <div className="feed-meta">
+                  <time>{formatClock(item.received_at ?? item.captured_at)}</time>
+                  {isSpeaking ? (
+                    <span className="tag">
+                      <SoundBars />
+                      Reading aloud
+                    </span>
+                  ) : spoken ? (
+                    <span className="tag">
+                      <Icon name="speaker" size={12} />
+                      Spoken
+                    </span>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Panel>

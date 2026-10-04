@@ -1,38 +1,38 @@
 import { Panel } from '../components/Panel';
+import { StatusDot } from '../components/Badge';
+import { Icon } from '../components/Icon';
+import { SERVICE_LABELS, serviceState } from '../lib/labels';
 
-// The four indicators required by design document section 2.
-const SERVICES = [
-  ['camera', 'Camera'],
-  ['video', 'Video'],
-  ['gemini', 'Gemini'],
-  ['elevenlabs', 'ElevenLabs'],
+// The four indicators required by design document section 2, named for what
+// they do rather than which vendor provides them.
+const ROWS = [
+  ['camera', 'camera'],
+  ['video', 'video'],
+  ['gemini', 'sparkle'],
+  ['elevenlabs', 'speaker'],
 ];
 
-const DOT = {
-  ok: 'ok',
-  degraded: 'warn',
-  down: 'bad',
-  disabled: 'muted',
-  unknown: 'muted',
-};
+const TONE_CLASS = { ok: 'is-ok', warn: 'is-warn', bad: 'is-bad' };
 
 export function ServicesPanel({ status }) {
   const services = status.services ?? {};
+
   return (
-    <Panel title="Connections">
-      <ul className="services">
-        {SERVICES.map(([key, label]) => {
-          const service = services[key] ?? { state: 'unknown', detail: '' };
+    <Panel title="Status">
+      <ul className="status-list">
+        {ROWS.map(([key, icon]) => {
+          const service = services[key] ?? { state: 'unknown' };
+          const info = serviceState(service.state);
           return (
             <li key={key}>
-              <span className={`dot ${DOT[service.state] ?? 'muted'}`} aria-hidden="true" />
-              <span className="service-name">{label}</span>
-              <span className="service-state">{service.state}</span>
-              {service.detail ? (
-                <span className="service-detail" title={service.detail}>
-                  {service.detail}
-                </span>
-              ) : null}
+              <span className="status-icon">
+                <Icon name={icon} size={15} />
+              </span>
+              <span className="status-name">{SERVICE_LABELS[key] ?? key}</span>
+              <span className={`status-value ${TONE_CLASS[info.tone] ?? ''}`.trim()}>
+                <StatusDot tone={info.tone} live={info.tone === 'ok'} />
+                {info.text}
+              </span>
             </li>
           );
         })}

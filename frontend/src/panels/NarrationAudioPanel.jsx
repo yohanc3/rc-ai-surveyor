@@ -1,43 +1,69 @@
 import { Panel } from '../components/Panel';
+import { Button } from '../components/Button';
+import { EmptyState } from '../components/EmptyState';
+import { Icon, SoundBars } from '../components/Icon';
 import { useNarrationAudio } from '../audio/useNarrationAudio';
+import { EMPTY } from '../lib/labels';
 
-export function NarrationAudioPanel({ latestAudio, status }) {
-  const { enabled, enable, disable, playing, error } = useNarrationAudio(latestAudio);
-  const interval = status?.tts_min_interval_seconds;
+/**
+ * Spoken narration. Browsers refuse to play audio until the page has been
+ * interacted with once, so the first state here is a single clear action
+ * rather than an explanation of the browser's rules.
+ */
+export function NarrationAudioPanel({ latestAudio }) {
+  const { enabled, enable, disable, playing, error } =
+    useNarrationAudio(latestAudio);
 
   return (
     <Panel
-      title="Narration audio"
+      title={
+        <>
+          <Icon name="speaker" size={17} />
+          Narration
+        </>
+      }
       actions={
         enabled ? (
-          <button type="button" onClick={disable}>
-            Mute
-          </button>
+          <Button onClick={disable}>
+            <Icon name="speakerOff" size={14} />
+            <span>Turn off sound</span>
+          </Button>
         ) : (
-          <button type="button" className="primary" onClick={enable}>
-            Enable audio
-          </button>
+          <Button variant="primary" onClick={enable}>
+            <Icon name="speaker" size={14} />
+            <span>Turn on sound</span>
+          </Button>
         )
       }
     >
-      {!enabled ? (
-        <p className="muted small">
-          Browsers block audio until you interact with the page once. Enable it
-          and each new narration plays automatically.
+      {enabled ? (
+        <p className={`audio-state ${playing ? 'is-playing' : ''}`.trim()}>
+          {playing ? <SoundBars /> : <Icon name="clock" size={15} />}
+          {playing ? 'Reading a description aloud' : 'Ready — will speak as descriptions arrive'}
         </p>
       ) : (
-        <p className="small">
-          {playing ? 'Playing narration…' : 'Waiting for the next narration.'}
-          {interval ? ` Minimum gap ${interval}s.` : ''}
+        <p className="small muted">
+          Turn on sound to hear each description read aloud as it arrives.
         </p>
       )}
 
-      {error ? <p className="small bad">Playback failed: {error}</p> : null}
+      {error ? (
+        <p className="small is-bad">Could not play the audio: {error}</p>
+      ) : null}
 
       {latestAudio ? (
-        <audio className="player" controls preload="none" src={latestAudio.audio_url} />
+        <audio
+          className="player"
+          controls
+          preload="none"
+          src={latestAudio.audio_url}
+        />
       ) : (
-        <p className="muted small">No narration has been generated yet.</p>
+        <EmptyState
+          icon="speaker"
+          title={EMPTY.audio.title}
+          hint={EMPTY.audio.hint}
+        />
       )}
     </Panel>
   );

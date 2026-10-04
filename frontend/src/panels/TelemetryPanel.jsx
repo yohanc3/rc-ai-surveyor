@@ -1,7 +1,16 @@
 import { Panel } from '../components/Panel';
 import { Stat, StatList } from '../components/Stat';
+import { Icon } from '../components/Icon';
 import { formatBytes, formatDuration, formatMs, isStale } from '../lib/format';
 
+/**
+ * Activity counters.
+ *
+ * The four figures on top are the ones anyone can read: how much the camera
+ * has seen, said and spoken, and how long it has been going. Everything
+ * measured in milliseconds, batches or bytes is real but specialised, so it
+ * folds away behind a disclosure instead of competing for attention.
+ */
 export function TelemetryPanel({ status }) {
   const frames = status.frames ?? {};
   const relay = status.relay ?? {};
@@ -9,44 +18,70 @@ export function TelemetryPanel({ status }) {
   const stale = isStale(status);
 
   return (
-    <Panel title="Pipeline">
+    <Panel
+      title={
+        <>
+          <Icon name="activity" size={17} />
+          Activity
+        </>
+      }
+    >
       <StatList>
-        <Stat label="Frames" value={(frames.captured ?? 0).toLocaleString()} />
         <Stat
-          label="Sample rate"
-          value={`${frames.measured_fps || '—'} / ${frames.configured_fps ?? '—'} fps`}
-          kind={stale ? 'bad' : ''}
+          label="Pictures taken"
+          value={(frames.captured ?? 0).toLocaleString()}
+          tone={stale ? 'warn' : ''}
         />
-        <Stat label="Frame size" value={formatBytes(frames.last_bytes)} />
         <Stat
-          label="Relay"
-          value={relay.up ? 'up' : 'down'}
-          kind={relay.up ? 'ok' : 'bad'}
+          label="Descriptions"
+          value={(metrics.analyses_succeeded ?? 0).toLocaleString()}
         />
-        <Stat label="Restarts" value={String(relay.restarts ?? 0)} />
-        <Stat label="Uptime" value={formatDuration(status.uptime_seconds)} />
-        <Stat label="Providers" value={status.provider_mode ?? '—'} />
+        <Stat
+          label="Read aloud"
+          value={(metrics.speech_succeeded ?? 0).toLocaleString()}
+        />
+        <Stat label="Running for" value={formatDuration(status.uptime_seconds)} />
       </StatList>
 
-      <h3 className="sub-head">Analysis</h3>
-      <StatList>
-        <Stat label="Batches" value={String(metrics.batches_created ?? 0)} />
-        <Stat
-          label="Dropped"
-          value={String(metrics.batches_dropped ?? 0)}
-          kind={metrics.batches_dropped ? 'warn' : ''}
-        />
-        <Stat label="Pending" value={String(metrics.pending_batches ?? 0)} />
-        <Stat label="Analysed" value={String(metrics.analyses_succeeded ?? 0)} />
-        <Stat
-          label="Failed"
-          value={String(metrics.analyses_failed ?? 0)}
-          kind={metrics.analyses_failed ? 'bad' : ''}
-        />
-        <Stat label="Gemini latency" value={formatMs(metrics.gemini_last_latency_ms)} />
-        <Stat label="Spoken" value={String(metrics.speech_succeeded ?? 0)} />
-        <Stat label="Speech latency" value={formatMs(metrics.elevenlabs_last_latency_ms)} />
-      </StatList>
+      <details className="disclosure">
+        <summary>Technical details</summary>
+        <div className="disclosure-body">
+          <StatList>
+            <Stat
+              label="Pictures / second"
+              value={`${frames.measured_fps || '—'} of ${frames.configured_fps ?? '—'}`}
+              tone={stale ? 'bad' : ''}
+            />
+            <Stat label="Picture size" value={formatBytes(frames.last_bytes)} />
+            <Stat
+              label="Video connection"
+              value={relay.up ? 'Up' : 'Down'}
+              tone={relay.up ? 'ok' : 'bad'}
+            />
+            <Stat label="Reconnections" value={String(relay.restarts ?? 0)} />
+            <Stat label="Picture groups" value={String(metrics.batches_created ?? 0)} />
+            <Stat
+              label="Groups skipped"
+              value={String(metrics.batches_dropped ?? 0)}
+              tone={metrics.batches_dropped ? 'warn' : ''}
+            />
+            <Stat label="Waiting" value={String(metrics.pending_batches ?? 0)} />
+            <Stat
+              label="Failed"
+              value={String(metrics.analyses_failed ?? 0)}
+              tone={metrics.analyses_failed ? 'bad' : ''}
+            />
+            <Stat
+              label="Describe time"
+              value={formatMs(metrics.gemini_last_latency_ms)}
+            />
+            <Stat
+              label="Speak time"
+              value={formatMs(metrics.elevenlabs_last_latency_ms)}
+            />
+          </StatList>
+        </div>
+      </details>
     </Panel>
   );
 }

@@ -1,29 +1,28 @@
 import { useBackend } from './backend/useBackend';
 import { panelsFor } from './panels/registry';
-import { Badge } from './components/Badge';
-import { formatDuration, isStale } from './lib/format';
+import { Badge, StatusDot } from './components/Badge';
+import { Icon } from './components/Icon';
+import { cameraHeadline, providerLabel, SOURCE_LABELS } from './lib/labels';
+import { formatDuration } from './lib/format';
 
-const MODE_BADGE = {
-  connecting: { text: 'connecting', kind: '' },
-  live: { text: 'live backend', kind: 'ready' },
-  demo: { text: 'demo data', kind: 'warn' },
-  offline: { text: 'backend unavailable', kind: 'error' },
-};
-
-function liveBadge(mode, status) {
-  if (mode === 'offline') return { text: 'backend unavailable', kind: 'error' };
-  const captured = status.frames?.captured ?? 0;
-  if (captured === 0) return { text: 'waiting for frames', kind: '' };
-  if (isStale(status)) return { text: 'frames stalled', kind: 'error' };
-  return { text: `frame ${captured.toLocaleString()}`, kind: 'ready' };
-}
-
+/**
+ * Application shell.
+ *
+ * A sidebar carries identity and standing status — the things that are always
+ * true. The main column carries what changes: a sticky bar answering "is this
+ * working?", the live picture, then everything that streams in beneath it.
+ *
+ * Panels are still looked up through the registry, so the extension point is
+ * unchanged: write a component, add one line to panels/registry.js. The three
+ * slots now map onto the shell as stage → hero, side → sidebar, row → content.
+ */
 export default function App() {
   const ctx = useBackend();
   const { mode, status } = ctx;
 
-  const source = MODE_BADGE[mode] ?? MODE_BADGE.connecting;
-  const live = liveBadge(mode, status);
+  const camera = cameraHeadline(mode, status);
+  const source = SOURCE_LABELS[mode] ?? SOURCE_LABELS.connecting;
+  const provider = providerLabel(status?.provider_mode);
 
   const render = (panel) => {
     const Component = panel.component;
@@ -31,33 +30,70 @@ export default function App() {
   };
 
   return (
-    <main>
-      <header>
-        <div>
-          <h1>RC AI Surveyor</h1>
-          <p className="sub">HERO7 Silver · low-latency relay</p>
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="brand-mark">
+            <Icon name="compass" size={19} />
+          </span>
+          <div className="brand-text">
+            <h1>Surveyor</h1>
+            <p>Live camera companion</p>
+          </div>
         </div>
-        <div className="badges">
-          <Badge kind={live.kind}>{live.text}</Badge>
-          <Badge kind={source.kind}>{source.text}</Badge>
-          <Badge kind="quiet">up {formatDuration(status.uptime_seconds)}</Badge>
+
+        {panelsFor('side', ctx).map(render)}
+
+        <div className="sidebar-foot">
+          <div className="sidebar-foot-row">
+            <span>Running for</span>
+            <strong>{formatDuration(status?.uptime_seconds)}</strong>
+          </div>
+          {provider ? (
+            <div className="sidebar-foot-row">
+              <span>Descriptions</span>
+              <strong>{provider.text}</strong>
+            </div>
+          ) : null}
         </div>
-      </header>
+      </aside>
 
-      {mode === 'demo' ? (
-        <p className="notice">
-          Showing simulated data — no GoPro or Python backend reachable. Start{' '}
-          <code>python3 run.py</code> and reload, or drop the{' '}
-          <code>?demo=1</code> query parameter.
-        </p>
-      ) : null}
+      <main className="main">
+        <div className="appbar">
+          <div className="appbar-title">
+            <h2>Live view</h2>
+            <span className="appbar-sub">
+              See what your camera sees, described as you go
+            </span>
+          </div>
+          <div className="appbar-actions">
+            <Badge tone={camera.tone} dot live={camera.live}>
+              {camera.text}
+            </Badge>
+            <Badge tone={source.tone}>{source.text}</Badge>
+          </div>
+        </div>
 
-      <div className="stage">
-        <div className="stage-main">{panelsFor('stage', ctx).map(render)}</div>
-        <aside>{panelsFor('side', ctx).map(render)}</aside>
-      </div>
+        <div className="content">
+          {mode === 'demo' ? (
+            <div className="notice" role="status">
+              <Icon name="alert" size={18} />
+              <div>
+                <p className="notice-title">You are looking at demo data</p>
+                <p className="notice-body">
+                  No camera is connected, so the pictures and descriptions on
+                  this page are made up. Start the app and reload to see the
+                  real thing.
+                </p>
+              </div>
+            </div>
+          ) : null}
 
-      <div className="grid">{panelsFor('row', ctx).map(render)}</div>
-    </main>
+          {panelsFor('stage', ctx).map(render)}
+
+          <div className="columns">{panelsFor('row', ctx).map(render)}</div>
+        </div>
+      </main>
+    </div>
   );
 }
