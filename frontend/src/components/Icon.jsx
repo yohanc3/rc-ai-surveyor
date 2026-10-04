@@ -81,6 +81,7 @@ const PATHS = {
       <path d="M4 6.75h.01M4 12h.01M4 17.25h.01" />
     </>
   ),
+  check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   compass: (
     <>
       <circle cx="12" cy="12" r="8.75" />

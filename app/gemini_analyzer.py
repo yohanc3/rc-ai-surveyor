@@ -8,6 +8,7 @@ import logging
 from collections import deque
 
 from .config import Config
+from .skills import SkillRegistry
 from .models import Analysis, AnalysisError, FrameBatch, SchemaValidationError
 
 log = logging.getLogger("rc.gemini")
@@ -112,10 +113,26 @@ class GeminiVisionAnalyzer:
     The SDK is imported lazily so mock mode needs neither the package nor a key.
     """
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, skills: SkillRegistry | None = None) -> None:
         self._config = config
         self._client = None
         self._recent_observations: deque[str] = deque(maxlen=20)
+        self._skills = skills or SkillRegistry()
+        self._skill_version = self._skills.version
+
+    def _active_persona(self) -> str:
+        """The persona for this request, forgetting history across a switch.
+
+        Observations are what the *previous* character said. Carrying them into
+        a new one produces callbacks to jokes it never made, so a change of
+        skill starts the history again.
+        """
+        version = self._skills.version
+        if version != self._skill_version:
+            self._skill_version = version
+            self._recent_observations.clear()
+            log.info("skill_changed id=%s", self._skills.active().id)
+        return self._skills.active().persona
 
     def _ensure_client(self):
         if self._client is not None:
@@ -130,11 +147,13 @@ class GeminiVisionAnalyzer:
         self._client = genai.Client(api_key=self._config.gemini_api_key)
         return self._client
 
-    def _build_config(self):
+    def _build_config(self, persona: str):
         from google.genai import types  # noqa: PLC0415
 
         kwargs = {
-            "system_instruction": SYSTEM_PROMPT + "\n" + OUTPUT_INSTRUCTIONS,
+            # The persona varies with the selected skill; OUTPUT_INSTRUCTIONS
+            # never does, so the schema and safety rules survive every switch.
+            "system_instruction": persona + "\n" + OUTPUT_INSTRUCTIONS,
             "response_mime_type": "application/json",
             "response_schema": RESPONSE_SCHEMA,
         }
@@ -165,12 +184,14 @@ class GeminiVisionAnalyzer:
 
     async def analyze(self, batch: FrameBatch) -> Analysis:
         client = self._ensure_client()
+        # Read the persona first: it may clear the history this request uses.
+        persona = self._active_persona()
         try:
             response = await asyncio.wait_for(
                 client.aio.models.generate_content(
                     model=self._config.gemini_model,
                     contents=self._build_contents(batch),
-                    config=self._build_config(),
+                    config=self._build_config(persona),
                 ),
                 timeout=self._config.gemini_timeout_seconds,
             )

@@ -78,8 +78,12 @@ class FrameBatcher:
 class AnalysisPipeline:
     """Owns an asyncio loop on its own thread and drives both provider stages."""
 
-    def __init__(self, config: Config, analyzer, synthesizer, bus: EventBus, state) -> None:
+    def __init__(
+        self, config: Config, analyzer, synthesizer, bus: EventBus, state,
+        skills=None,
+    ) -> None:
         self._config = config
+        self._skills = skills
         self._analyzer = analyzer
         self._synthesizer = synthesizer
         self._bus = bus
@@ -236,6 +240,19 @@ class AnalysisPipeline:
         except Exception as error:
             raise AnalysisError(f"{type(error).__name__}: {error}") from error
 
+    def _speech_interval(self) -> float:
+        """How long to wait between spoken lines.
+
+        A skill may set its own pace — a documentary narrator needs room, a
+        sports commentator does not — and falls back to the configured value
+        when it names none.
+        """
+        if self._skills is not None:
+            override = self._skills.active().speech_interval
+            if override is not None:
+                return override
+        return self._config.tts_min_interval_seconds
+
     # ---------- speech stage ----------
 
     def _offer_narration(self, analysis: Analysis) -> None:
@@ -263,7 +280,7 @@ class AnalysisPipeline:
             if analysis is None:
                 continue
 
-            cooldown = self._config.tts_min_interval_seconds - (
+            cooldown = self._speech_interval() - (
                 time.monotonic() - self._last_speech_start
             )
             if cooldown > 0:

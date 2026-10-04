@@ -16,6 +16,7 @@ SERVICES = ("camera", "video", "gemini", "elevenlabs")
 
 class PipelineState:
     def __init__(self, config, media_url: str, whep_url: str) -> None:
+        self._skills = None
         self._lock = threading.Lock()
         self._config = config
         self._media_url = media_url
@@ -43,6 +44,10 @@ class PipelineState:
                 self._health[name].set("ok", "mock provider")
 
         self._pipeline = None
+
+    def attach_skills(self, skills) -> None:
+        """Hand the state the skill registry so the API can report it."""
+        self._skills = skills
 
     def attach_pipeline(self, pipeline) -> None:
         self._pipeline = pipeline
@@ -98,6 +103,7 @@ class PipelineState:
             "sample_fps": self._config.analysis_fps,
             "provider_mode": self._config.provider_mode,
             "tts_min_interval_seconds": self._config.tts_min_interval_seconds,
+            "skills": self._skills.to_json() if self._skills else None,
         }
 
     def snapshot(self) -> dict:
@@ -114,6 +120,7 @@ class PipelineState:
             snapshot = {
                 "uptime_seconds": now - self._started_at,
                 "provider_mode": self._config.provider_mode,
+                "active_skill": self._skills.active().id if self._skills else None,
                 "frames": {
                     "captured": self._frame_count,
                     "last_sequence": self._frame_count,

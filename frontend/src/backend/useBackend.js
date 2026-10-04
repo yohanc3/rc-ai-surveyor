@@ -46,6 +46,7 @@ export function useBackend() {
   const [analyses, setAnalyses] = useState([]);
   const [latestAudio, setLatestAudio] = useState(null);
   const [frameUrl, setFrameUrl] = useState(null);
+  const [skills, setSkills] = useState(null);
 
   const mockRef = useRef(null);
   const seenFrame = useRef(0);
@@ -69,6 +70,18 @@ export function useBackend() {
       setAnalyses((prev) => {
         if (prev.some((item) => item.analysis_id === event.analysis_id)) return prev;
         return [{ ...event, received_at: new Date() }, ...prev].slice(0, MAX_ANALYSES);
+      });
+      return;
+    }
+
+    if (event.type === 'skill_changed') {
+      // Broadcast: one browser switched, so every other one follows.
+      setSkills({
+        skills: event.skills,
+        active_id: event.active_id,
+        custom_persona: event.custom_persona,
+        custom_placeholder: event.custom_placeholder,
+        max_persona_chars: event.max_persona_chars,
       });
       return;
     }
@@ -152,6 +165,7 @@ export function useBackend() {
         const cfg = await response.json();
         if (cancelled) return;
         setConfig(cfg);
+        if (cfg.skills) setSkills(cfg.skills);
         openEventStream();
         poll();
       } catch {
@@ -174,5 +188,39 @@ export function useBackend() {
     };
   }, [applyEvent]);
 
-  return { mode, config, status, analyses, latestAudio, frameUrl };
+  /**
+   * Ask the backend to switch skill. The reply is applied immediately so the
+   * picker responds at once; the SSE broadcast then keeps other tabs in step.
+   */
+  const selectSkill = useCallback(async (id, persona) => {
+    const body = persona === undefined ? { id } : { id, persona };
+    const response = await fetch('/api/skill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      let detail = `request failed (${response.status})`;
+      try {
+        detail = (await response.json()).error ?? detail;
+      } catch {
+        /* keep the status-code message */
+      }
+      throw new Error(detail);
+    }
+    const payload = await response.json();
+    setSkills(payload);
+    return payload;
+  }, []);
+
+  return {
+    mode,
+    config,
+    status,
+    analyses,
+    latestAudio,
+    frameUrl,
+    skills,
+    selectSkill,
+  };
 }

@@ -37,9 +37,19 @@ def dashboard_root() -> tuple[Path, str]:
     )
 
 
+def _make_skills_payload(state):
+    def _skills_payload() -> dict:
+        skills = getattr(state, "_skills", None)
+        return skills.to_json() if skills else {"skills": [], "active_id": None}
+
+    return _skills_payload
+
+
 def make_handler(
     state: PipelineState, bus: EventBus, store: AudioStore, root: Path
 ) -> type[BaseHTTPRequestHandler]:
+    _skills_payload = _make_skills_payload(state)
+
     class DashboardHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         server_version = "RCSurveyor/1.0"
@@ -70,6 +80,8 @@ def make_handler(
                 self._send_json(state.config_json())
             elif path == "/api/frame":
                 self._send_frame()
+            elif path == "/api/skills":
+                self._send_json(_skills_payload())
             elif path == "/api/events":
                 self._stream_events()
             elif path.startswith("/api/audio/"):
@@ -78,6 +90,54 @@ def make_handler(
                 self._send_json({"error": "not found"}, 404)
             else:
                 self._send_static("/index.html" if path == "/" else path)
+
+        def do_POST(self) -> None:
+            path = self.path.split("?", 1)[0]
+            if path != "/api/skill":
+                self._send_json({"error": "not found"}, 404)
+                return
+            self._select_skill()
+
+        def _select_skill(self) -> None:
+            skills = getattr(state, "_skills", None)
+            if skills is None:
+                self._send_json({"error": "skills are not available"}, 503)
+                return
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = 0
+            if length <= 0 or length > 64 * 1024:
+                self._send_json({"error": "a JSON body is required"}, 400)
+                return
+            try:
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                self._send_json({"error": "body was not valid JSON"}, 400)
+                return
+            if not isinstance(payload, dict):
+                self._send_json({"error": "body must be a JSON object"}, 400)
+                return
+
+            skill_id = payload.get("id")
+            persona = payload.get("persona")
+            if not isinstance(skill_id, str):
+                self._send_json({"error": "id must be a string"}, 400)
+                return
+            if persona is not None and not isinstance(persona, str):
+                self._send_json({"error": "persona must be a string"}, 400)
+                return
+            try:
+                skills.select(skill_id, persona)
+            except ValueError as error:
+                self._send_json({"error": str(error)}, 400)
+                return
+
+            payload = _skills_payload()
+            # Tell every open dashboard, not just the one that clicked.
+            bus.publish({"type": "skill_changed", **payload})
+            log.info("skill_selected id=%s", skills.active().id)
+            self._send_json(payload)
 
         # ---------- endpoints ----------
 

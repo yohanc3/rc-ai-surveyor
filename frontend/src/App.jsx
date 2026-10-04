@@ -18,11 +18,13 @@ import { formatDuration } from './lib/format';
  */
 export default function App() {
   const ctx = useBackend();
-  const { mode, status } = ctx;
+  const { mode, status, skills } = ctx;
 
   const camera = cameraHeadline(mode, status);
   const source = SOURCE_LABELS[mode] ?? SOURCE_LABELS.connecting;
   const provider = providerLabel(status?.provider_mode);
+  const activeSkill =
+    skills?.skills?.find((skill) => skill.id === skills.active_id) ?? null;
 
   const render = (panel) => {
     const Component = panel.component;
@@ -49,6 +51,12 @@ export default function App() {
             <span>Running for</span>
             <strong>{formatDuration(status?.uptime_seconds)}</strong>
           </div>
+          {activeSkill ? (
+            <div className="sidebar-foot-row">
+              <span>Skill</span>
+              <strong>{activeSkill.name}</strong>
+            </div>
+          ) : null}
           {provider ? (
             <div className="sidebar-foot-row">
               <span>Descriptions</span>
@@ -71,6 +79,9 @@ export default function App() {
               {camera.text}
             </Badge>
             <Badge tone={source.tone}>{source.text}</Badge>
+            {activeSkill ? (
+              <Badge tone="accent">{activeSkill.name}</Badge>
+            ) : null}
           </div>
         </div>
 

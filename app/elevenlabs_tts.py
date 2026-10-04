@@ -11,6 +11,7 @@ import urllib.request
 from .audio_store import AudioStore
 from .config import Config
 from .models import Analysis, AnalysisError, AudioResult
+from .skills import SkillRegistry
 from .tls import verified_context
 
 log = logging.getLogger("rc.elevenlabs")
@@ -20,16 +21,22 @@ OUTPUT_FORMAT = "mp3_44100_128"
 CHUNK = 16 * 1024
 
 
-def build_request(config: Config, text: str) -> urllib.request.Request:
+def build_request(
+    config: Config, text: str, voice_id: str | None = None
+) -> urllib.request.Request:
     """Construct the streaming TTS request.
 
     Separated from the network call so the URL, headers and body can be checked
     without an API key. The key is set here and must never be logged.
+
+    ``voice_id`` comes from the active skill; a blank or missing one falls back
+    to the configured voice, so a skill that names no voice sounds unchanged.
     """
     if not text.strip():
         raise AnalysisError("refusing to synthesize empty narration")
 
-    url = f"{API_ROOT}/{config.elevenlabs_voice_id}/stream?output_format={OUTPUT_FORMAT}"
+    voice = (voice_id or "").strip() or config.elevenlabs_voice_id
+    url = f"{API_ROOT}/{voice}/stream?output_format={OUTPUT_FORMAT}"
     body = json.dumps(
         {"text": text, "model_id": config.elevenlabs_model_id}
     ).encode("utf-8")
@@ -48,12 +55,15 @@ def build_request(config: Config, text: str) -> urllib.request.Request:
 class ElevenLabsSpeechSynthesizer:
     """Streams narration audio and publishes it atomically."""
 
-    def __init__(self, config: Config, store: AudioStore) -> None:
+    def __init__(
+        self, config: Config, store: AudioStore, skills: SkillRegistry | None = None
+    ) -> None:
         self._config = config
         self._store = store
+        self._skills = skills or SkillRegistry()
 
     def _fetch(self, text: str) -> bytes:
-        request = build_request(self._config, text)
+        request = build_request(self._config, text, self._skills.active().voice_id)
         chunks: list[bytes] = []
         try:
             with urllib.request.urlopen(

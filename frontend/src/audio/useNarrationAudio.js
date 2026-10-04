@@ -11,6 +11,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export function useNarrationAudio(latestAudio) {
   const audioRef = useRef(null);
   const queuedRef = useRef(null);
+  // Bumped whenever a play attempt is deliberately superseded — by a newer
+  // clip, by muting, or by the unlock tap. Changing `src` or calling pause()
+  // rejects a play() promise that is still pending, and that rejection is
+  // expected rather than a failure the viewer should be told about.
+  const attemptRef = useRef(0);
   const [enabled, setEnabled] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState(null);
@@ -23,16 +28,29 @@ export function useNarrationAudio(latestAudio) {
   const play = useCallback((clip) => {
     const audio = audioRef.current;
     if (!audio || !clip) return;
+    const attempt = (attemptRef.current += 1);
     audio.src = clip.audio_url;
     setError(null);
-    audio
-      .play()
+
+    const started = audio.play();
+    // Older browsers return undefined rather than a promise.
+    if (!started || typeof started.then !== 'function') {
+      setPlaying(true);
+      setPlayedId(clip.analysis_id);
+      return;
+    }
+
+    started
       .then(() => {
+        if (attempt !== attemptRef.current) return;
         setPlaying(true);
         setPlayedId(clip.analysis_id);
       })
       .catch((err) => {
-        // Autoplay policy, or a clip that failed to load.
+        // A superseded attempt always rejects. Say nothing: this is the
+        // newest-clip-wins rule working, not a playback failure.
+        if (attempt !== attemptRef.current) return;
+        if (err && err.name === 'AbortError') return;
         setPlaying(false);
         setError(err.message);
       });
@@ -68,6 +86,7 @@ export function useNarrationAudio(latestAudio) {
     setEnabled(true);
     // Unlock playback inside the click handler, which is what browsers require.
     if (audio) {
+      attemptRef.current += 1;
       audio.muted = true;
       audio
         .play()
@@ -85,6 +104,7 @@ export function useNarrationAudio(latestAudio) {
     queuedRef.current = null;
     const audio = audioRef.current;
     if (audio) {
+      attemptRef.current += 1;
       audio.pause();
       setPlaying(false);
     }

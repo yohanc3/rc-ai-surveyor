@@ -31,6 +31,7 @@ from app.frame_pipeline import AnalysisPipeline
 from app.models import Frame, utc_now
 from app.providers import MockSpeechSynthesizer, MockVisionAnalyzer
 from app.server import PROJECT_DIR, VITE_DIST, start_dashboard
+from app.skills import SkillRegistry
 from app.state import PipelineState
 
 CAMERA_KEEPALIVE = b"_GPHD_:0:0:2:0.000000\n"
@@ -294,15 +295,18 @@ class FrameSampler:
 # ---------- providers ----------
 
 
-def build_providers(config, store: AudioStore):
+def build_providers(config, store: AudioStore, skills=None):
     """Mock providers need no network, no SDK and no API key."""
     if not config.is_live:
-        return MockVisionAnalyzer(), MockSpeechSynthesizer(store)
+        return MockVisionAnalyzer(skills=skills), MockSpeechSynthesizer(store)
 
     from app.elevenlabs_tts import ElevenLabsSpeechSynthesizer
     from app.gemini_analyzer import GeminiVisionAnalyzer
 
-    return GeminiVisionAnalyzer(config), ElevenLabsSpeechSynthesizer(config, store)
+    return (
+        GeminiVisionAnalyzer(config, skills),
+        ElevenLabsSpeechSynthesizer(config, store, skills),
+    )
 
 
 # ---------- setup phase ----------
@@ -454,8 +458,10 @@ def main() -> int:
         store = AudioStore(config.audio_dir, config.audio_retention)
         store.clear()
 
-        analyzer, synthesizer = build_providers(config, store)
-        pipeline = AnalysisPipeline(config, analyzer, synthesizer, bus, state)
+        skills = SkillRegistry()
+        state.attach_skills(skills)
+        analyzer, synthesizer = build_providers(config, store, skills)
+        pipeline = AnalysisPipeline(config, analyzer, synthesizer, bus, state, skills)
         state.attach_pipeline(pipeline)
         pipeline.start()
         log.info(

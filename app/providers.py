@@ -34,10 +34,15 @@ class SpeechSynthesizer(Protocol):
 class MockVisionAnalyzer:
     """Offline stand-in that clearly reports it does not inspect frame pixels."""
 
-    def __init__(self, latency_seconds: float = 0.6, fail_every: int = 0) -> None:
+    def __init__(
+        self, latency_seconds: float = 0.6, fail_every: int = 0, skills=None
+    ) -> None:
         self._latency = latency_seconds
         self._fail_every = fail_every
         self._calls = 0
+        # Naming the active skill lets the picker be exercised offline: you can
+        # see a switch take effect without spending a real Gemini call.
+        self._skills = skills
 
     async def analyze(self, batch: FrameBatch) -> Analysis:
         self._calls += 1
@@ -49,12 +54,20 @@ class MockVisionAnalyzer:
             frame_sequences=batch.sequences,
             captured_at=batch.captured_at,
             technical_description=(
-                "Mock provider active; this description was not derived from the camera frame."
+                "Mock provider active; this description was not derived from "
+                "the camera frame."
             ),
             narration_text=(
-                "Mock mode is active, so I am not analyzing the camera image."
+                f"Mock update {self._calls} with the {self._skill_name()} "
+                "skill. Mock mode is active, so I am not looking at the "
+                "camera image."
             ),
         )
+
+    def _skill_name(self) -> str:
+        if self._skills is None:
+            return "default"
+        return self._skills.active().name
 
 
 class MockSpeechSynthesizer:

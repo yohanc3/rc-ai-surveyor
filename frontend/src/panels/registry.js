@@ -5,6 +5,7 @@ import { TelemetryPanel } from './TelemetryPanel';
 import { AnalysisStreamPanel } from './AnalysisStreamPanel';
 import { NarrationAudioPanel } from './NarrationAudioPanel';
 import { EventLogPanel } from './EventLogPanel';
+import { SkillsPanel } from './SkillsPanel';
 
 /**
  * The panel registry — the extension point for this dashboard.
@@ -22,6 +23,7 @@ export const PANELS = [
   { id: 'live-video', slot: 'stage', component: LiveVideoPanel },
   { id: 'connections', slot: 'side', component: ServicesPanel },
   { id: 'sampled-frame', slot: 'side', component: SampledFramePanel },
+  { id: 'skills', slot: 'row', component: SkillsPanel },
   { id: 'analysis-stream', slot: 'row', component: AnalysisStreamPanel },
   { id: 'narration-audio', slot: 'row', component: NarrationAudioPanel },
   { id: 'telemetry', slot: 'row', component: TelemetryPanel },
