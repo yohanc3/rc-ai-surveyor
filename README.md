@@ -99,9 +99,32 @@ python3 test.py
 
 It uses the configured `ELEVENLABS_VOICE_ID` and `ELEVENLABS_MODEL_ID`, falling
 back to the example voice and `eleven_v3`, then plays the returned audio. Set
-`ELEVENLABS_TEST_TEXT` to change the spoken sentence. The script retries
-transport failures, saves successful audio to `var/elevenlabs-test.mp3`, and
+`ELEVENLABS_TEST_TEXT` to change the spoken sentence. The script saves
+successful audio to `var/elevenlabs-test.mp3`, and
 only reports success after the SDK's lazy audio iterator has actually finished.
+Paid requests are not automatically retried if their response is lost.
+
+To check HTTPS and account access without generating speech:
+
+```bash
+python3 test.py --check
+```
+
+This check uses the standard library and reports network failures separately
+from HTTP authentication/permission errors. A TTS-only key may lack permission
+to read subscription metadata. On macOS, the check and backend use the system
+CA bundle if Python has no default certificate store; TLS verification remains
+enabled.
+
+On the network tested on 2026-10-03, TCP connections to ElevenLabs succeed but
+TLS is reset when its hostname is sent. Both the global API and documented US
+API endpoint are affected, while other HTTPS sites work. This strongly suggests
+hostname-based filtering along that network path, but the responsible device
+is unconfirmed. Use a different internet connection (for example phone USB
+tethering) or ask the network administrator to allow `api.elevenlabs.io` on TCP
+443. Repeated API calls and changing the key cannot fix a pre-HTTP TLS reset.
+See [ElevenLabs authentication](https://elevenlabs.io/docs/api-reference/authentication)
+and [official endpoint guidance](https://elevenlabs.io/docs/eleven-api/guides/how-to/best-practices/latency-optimization).
 
 ### Tests
 
