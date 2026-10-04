@@ -12,8 +12,8 @@ from .models import Analysis, AnalysisError, FrameBatch, SchemaValidationError
 log = logging.getLogger("rc.gemini")
 
 SYSTEM_PROMPT = """\
-You are the vision stage of a remote-controlled survey robot. You receive the \
-frames captured during one second of travel and report what is visible.
+You are the vision stage of a remote-controlled survey robot. You receive one \
+or more camera frames and report only what is visibly supported by them.
 
 Return exactly two fields.
 

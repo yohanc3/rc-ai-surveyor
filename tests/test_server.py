@@ -67,7 +67,7 @@ class TestStaticAndApi(ServerTestCase):
         status, payload = self.get_json("/api/config")
         self.assertEqual(status, 200)
         self.assertEqual(payload["whep_url"], "http://media/whep")
-        self.assertEqual(payload["sample_fps"], 2.0)
+        self.assertEqual(payload["sample_fps"], 0.5)
         self.assertEqual(payload["provider_mode"], "mock")
 
     def test_status_shape_matches_design_document(self):

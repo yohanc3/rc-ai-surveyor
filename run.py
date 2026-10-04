@@ -387,7 +387,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ice-port", type=int, default=8189)
     parser.add_argument("--dashboard-port", type=int, default=8787)
     parser.add_argument("--sample-fps", type=float, default=None,
-                        help="analysis sampling rate (default: ANALYSIS_FPS or 2)")
+                        help="analysis sampling rate (default: ANALYSIS_FPS or 0.5)")
     parser.add_argument("--provider-mode", choices=("mock", "live"), default=None,
                         help="mock needs no internet; live calls Gemini and ElevenLabs")
     parser.add_argument("--no-browser", action="store_true")

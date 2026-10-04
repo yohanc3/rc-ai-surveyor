@@ -101,11 +101,11 @@ def load_config(sample_fps: float | None = None, provider_mode: str | None = Non
     if mode not in (MOCK, LIVE):
         raise ConfigError(f"PROVIDER_MODE must be '{MOCK}' or '{LIVE}', got {mode!r}")
 
-    analysis_fps = sample_fps if sample_fps is not None else _float("ANALYSIS_FPS", 2.0)
+    analysis_fps = sample_fps if sample_fps is not None else _float("ANALYSIS_FPS", 0.5)
     if analysis_fps <= 0:
         raise ConfigError("analysis FPS must be greater than zero")
 
-    batch_seconds = _float("ANALYSIS_BATCH_SECONDS", 1.0)
+    batch_seconds = _float("ANALYSIS_BATCH_SECONDS", 2.0)
     if batch_seconds <= 0:
         raise ConfigError("ANALYSIS_BATCH_SECONDS must be greater than zero")
 

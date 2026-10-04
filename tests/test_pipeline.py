@@ -83,7 +83,12 @@ class RecordingSynthesizer:
 class PipelineTestCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.config = make_config(AUDIO_DIR=self._tmp.name, TTS_MIN_INTERVAL_SECONDS=0)
+        self.config = make_config(
+            AUDIO_DIR=self._tmp.name,
+            TTS_MIN_INTERVAL_SECONDS=0,
+            ANALYSIS_FPS=2,
+            ANALYSIS_BATCH_SECONDS=1,
+        )
         self.store = AudioStore(Path(self._tmp.name), self.config.audio_retention)
         self.bus = EventBus()
         self.events = self.bus.subscribe()
@@ -270,7 +275,12 @@ class TestSpeechPolicy(PipelineTestCase):
         self.assertEqual(len(synth.texts), 1, "the same text must be spoken once")
 
     def test_minimum_speech_interval_is_enforced(self):
-        config = make_config(AUDIO_DIR=self._tmp.name, TTS_MIN_INTERVAL_SECONDS=1.0)
+        config = make_config(
+            AUDIO_DIR=self._tmp.name,
+            TTS_MIN_INTERVAL_SECONDS=1.0,
+            ANALYSIS_FPS=2,
+            ANALYSIS_BATCH_SECONDS=1,
+        )
         synth = RecordingSynthesizer(self.store)
         pipeline = self.build(RecordingAnalyzer(), synth, config=config)
 
@@ -285,7 +295,12 @@ class TestSpeechPolicy(PipelineTestCase):
                                 f"speech cooldown not honoured (gap {gap:.2f}s)")
 
     def test_newer_narration_supersedes_one_waiting_on_cooldown(self):
-        config = make_config(AUDIO_DIR=self._tmp.name, TTS_MIN_INTERVAL_SECONDS=1.5)
+        config = make_config(
+            AUDIO_DIR=self._tmp.name,
+            TTS_MIN_INTERVAL_SECONDS=1.5,
+            ANALYSIS_FPS=2,
+            ANALYSIS_BATCH_SECONDS=1,
+        )
         synth = RecordingSynthesizer(self.store)
         analyzer = RecordingAnalyzer()
         pipeline = self.build(analyzer, synth, config=config)

@@ -5,8 +5,8 @@ Low-latency HERO7 Silver video with a backend frame pipeline.
 ```text
 GoPro UDP/H.264 -> MediaMTX -+-> browser WebRTC (live video)
                              |
-                             +-> frame sampler (2 FPS)
-                                  -> 1-second batch (2 frames, newest only)
+                    +-> frame sampler (0.5 FPS)
+                                  -> 2-second batch (1 frame, newest only)
                                   -> Gemini vision analysis
                                   -> technical + narration text   -> SSE
                                   -> ElevenLabs streaming TTS     -> MP3
@@ -49,8 +49,9 @@ http://127.0.0.1:8787/
 ```
 
 Nothing in this step reaches the internet: with the default
-`PROVIDER_MODE=mock`, the whole pipeline — video, frame sampling, analysis text
-and narration audio — runs entirely offline. If the MediaMTX image is missing,
+`PROVIDER_MODE=mock`, the video and frame sampling work offline. Mock analysis
+does not inspect images and explicitly labels its output as such. If the
+MediaMTX image is missing,
 `run.py` says so and points you back at step 1 rather than hanging on a pull it
 cannot complete.
 
@@ -78,8 +79,8 @@ ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=
 ELEVENLABS_MODEL_ID=eleven_flash_v2_5
 
-ANALYSIS_FPS=2
-ANALYSIS_BATCH_SECONDS=1
+ANALYSIS_FPS=0.5
+ANALYSIS_BATCH_SECONDS=2
 TTS_MIN_INTERVAL_SECONDS=3
 PROVIDER_MODE=mock
 ```

@@ -26,7 +26,12 @@ from tests.test_server import free_port
 class TestFullPipelineOverHttp(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self.config = make_config(AUDIO_DIR=self._tmp.name, TTS_MIN_INTERVAL_SECONDS=0)
+        self.config = make_config(
+            AUDIO_DIR=self._tmp.name,
+            TTS_MIN_INTERVAL_SECONDS=0,
+            ANALYSIS_FPS=2,
+            ANALYSIS_BATCH_SECONDS=1,
+        )
         self.store = AudioStore(Path(self._tmp.name), 5)
         self.bus = EventBus()
         self.state = PipelineState(self.config, "http://media/", "http://media/whep")

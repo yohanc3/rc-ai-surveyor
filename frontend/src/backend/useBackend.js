@@ -13,7 +13,7 @@ export const EMPTY_STATUS = {
     last_bytes: 0,
     last_age_seconds: null,
     measured_fps: 0,
-    configured_fps: 2,
+    configured_fps: 0.5,
     stale: false,
   },
   relay: { up: false, restarts: 0 },

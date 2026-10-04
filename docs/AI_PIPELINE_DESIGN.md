@@ -9,9 +9,9 @@ Last updated: 2026-10-03
 Extend RC AI Surveyor so one camera stream supports two independent paths:
 
 1. The browser continuously shows the lowest-latency live GoPro video.
-2. The backend samples two frames per second, asks Gemini to describe what is
-   visible, displays Gemini's two text outputs, converts the narration output
-   to speech with ElevenLabs, and plays that speech in the browser.
+2. The backend samples one frame every two seconds, asks Gemini to describe
+  what is visible, displays Gemini's two text outputs, converts the narration
+  output to speech with ElevenLabs, and plays that speech in the browser.
 
 The live video must never wait for Gemini or ElevenLabs.
 
@@ -42,10 +42,10 @@ HERO7 Silver (UDP MPEG-TS/H.264)
           /      \
          /        \ RTSP
         v          v
-Browser WebRTC   Frame sampler (2 JPEG frames/second)
+Browser WebRTC   Frame sampler (1 JPEG frame/2 seconds)
                        |
                        v
-              latest-frame batch (max size 2)
+              latest-frame batch (max size 1)
                        |
                        v
               Gemini vision analysis
@@ -83,15 +83,14 @@ network connected.
 
 ## 5. Frame ingestion and backpressure
 
-The current `FrameSampler` already produces JPEG bytes at two frames per
-second. Replace its log-only callback with a bounded analysis queue.
+The `FrameSampler` produces one JPEG every two seconds by default. Its callback
+feeds a bounded analysis queue.
 
 Design rules:
 
-- Capture exactly two frames per second by default.
-- Group the two frames from each one-second window into one Gemini request.
-  Gemini sees both images, preserving the requested 2 FPS visual sampling while
-  avoiding two independent model calls every second.
+- Capture one frame every two seconds by default.
+- Send each frame as one Gemini request; this keeps the analysis cadence and
+  model call rate at one request every two seconds.
 - Allow only one Gemini request in flight initially.
 - Keep at most one pending batch. When the worker is busy, replace the pending
   batch with the newest complete batch instead of accumulating stale footage.
@@ -100,8 +99,8 @@ Design rules:
 - Resize only if required by cost or latency testing. The GoPro preview frames
   are already small enough to send inline as JPEG data.
 
-Two frames per second equals 7,200 images per hour. Batching reduces request
-count, but both image volume and model cost must be measured during testing.
+One frame every two seconds equals 1,800 images per hour. Measure image volume
+and model cost during testing.
 
 ## 6. Gemini analysis
 
@@ -278,8 +277,8 @@ ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=
 ELEVENLABS_MODEL_ID=eleven_flash_v2_5
 
-ANALYSIS_FPS=2
-ANALYSIS_BATCH_SECONDS=1
+ANALYSIS_FPS=0.5
+ANALYSIS_BATCH_SECONDS=2
 TTS_MIN_INTERVAL_SECONDS=3
 PROVIDER_MODE=mock|live
 ```

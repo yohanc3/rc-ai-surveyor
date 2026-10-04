@@ -16,9 +16,9 @@ GoPro (UDP MPEG-TS/H.264, 10.5.5.9)
          |
       MediaMTX (Docker)
        /          \
-  browser WebRTC   frame sampler (2 fps JPEG)
+  browser WebRTC   frame sampler (0.5 fps JPEG)
    (live video)         |
-                   1-second batch (2 frames, newest only)
+                   2-second batch (1 frame, newest only)
                         |
                    Gemini vision  -> technical + narration text -> SSE
                         |
@@ -71,6 +71,8 @@ reconnecting browser is immediately consistent.
   interrupted; a newer clip replaces only what is queued and unplayed.
 - Transient provider errors retry once with jitter. Schema rejections never
   retry; the dashboard degrades and keeps the last good text.
+- Mock vision output explicitly says it is not derived from camera pixels;
+  frame-grounded descriptions require live Gemini mode.
 - Every analysis carries one id through logs, SSE and the audio URL.
 - All durations use the monotonic clock, so a system clock step cannot distort
   a reported rate or age.
@@ -106,7 +108,7 @@ analysis text in the browser, so the whole UI is explorable with no hardware.
 python3 -m unittest discover -s tests -t .
 ```
 
-45 tests, standard library only: no pip install, no network, no camera. They
+46 tests, standard library only: no pip install, no network, no camera. They
 cover batching and backpressure accounting, the retry policy, speech
 de-duplication and cooldown, every endpoint, SSE delivery and reconnect, and
 path traversal on both static files and audio ids. One integration test drives
@@ -114,12 +116,13 @@ the real pipeline behind the real HTTP server.
 
 ## Known gaps
 
-- **The live providers have never been executed.** No API key or reachable
-  network was available during development. Prompt building, response
-  validation and request construction are tested; no request has been made to
-  Gemini or ElevenLabs. Confirm `GEMINI_MODEL` and `ELEVENLABS_MODEL_ID` are
-  current before the first live run.
-- The camera path (Docker, FFmpeg, GoPro) is likewise untested end to end.
+- **Live Gemini analysis has been exercised successfully.** Frames from the
+  GoPro reached Gemini and produced successful responses. The live ElevenLabs
+  request failed TLS certificate verification before HTTP/authentication; the
+  existing `certifi` bundle validated a TLS handshake when selected via
+  `SSL_CERT_FILE`, but a successful TTS response still needs confirmation.
+- The GoPro sampling path has run end to end, though startup emitted transient
+  MPEG-TS/H.264 warnings before frames began flowing.
 - Deliberate deviations from the proposal: the stdlib HTTP server is kept
   instead of FastAPI, and ElevenLabs is called over plain HTTP instead of its
   SDK. Both keep mock mode free of third-party dependencies, which is what lets
